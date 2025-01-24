@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import com.lodong.poen.repository.BatteryInfoRepository
 import com.lodong.poen.repository.BinaryBleRepository
 import com.lodong.poen.repository.SignUpRepository
 import com.lodong.poen.service.BluetoothForegroundService
@@ -47,9 +48,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val preferencesHelper = PreferencesHelper.getInstance(this)
+        val batteryInfoRepository = BatteryInfoRepository(preferencesHelper)
 
         binaryBleRepository = BinaryBleRepository(this)
-        signUpRepository = SignUpRepository()
+        signUpRepository = SignUpRepository(preferencesHelper) // preferencesHelper 전달
+
         startAndBindService()
 
         checkAndRequestPermissions()
@@ -62,7 +66,10 @@ class MainActivity : ComponentActivity() {
                 Navigation(
                     bluetoothService = bluetoothService,
                     binaryBleRepository = binaryBleRepository,
-                    signUpRepository = signUpRepository
+                    signUpRepository = signUpRepository ,
+                    batteryInfoRepository = batteryInfoRepository // 전달
+
+
                 )
             } else {
                 LoadingScreen() // 서비스 초기화 중일 때 표시

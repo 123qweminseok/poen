@@ -42,6 +42,8 @@ class BluetoothViewModel(
     val service: BluetoothForegroundService,
     val repository: BinaryBleRepository, // Repository 주입
     val preferencesHelper: PreferencesHelper
+
+
 ) : ViewModel() {
 
     private val _sendStatus = MutableLiveData<Result<Boolean>>()
@@ -54,28 +56,32 @@ class BluetoothViewModel(
     private var lastDataReceivedTime = 0L
 
     private var completionJob: Job? = null
+    private  val PROGRESS_THRESHOLD = 95  // 데이터 기준점
+    private  val INITIAL_PROGRESS_MAX = 0.95f  // 95%
+    private  val FINAL_PROGRESS = 1.0f  // 100%
 
 
-    init {
-        service.bleManager.setBLEDataListener { data ->
-            bleDataListener?.invoke(data)
 
-            // 바이트 크기 누적
-            totalReceivedBytes += data.size
-
-            // 진행률 계산 (2000바이트까지 95%로 표시)
-            val progress = (totalReceivedBytes.toFloat() / 2000 * 0.95f).coerceIn(0f, 0.95f)
-            _diagnosisProgress.value = progress
-
-            // 마지막 데이터 수신 시간 업데이트
-            lastDataReceivedTime = System.currentTimeMillis()
-
-            // 2000바이트 이상일 때 완료 체크 시작
-            if (totalReceivedBytes >= 2000) {
-                checkCompletion()
-            }
-        }
-    }
+//    init {
+//        service.bleManager.setBLEDataListener { data ->
+//            bleDataListener?.invoke(data)
+//
+//            // 바이트 크기 누적
+//            totalReceivedBytes += data.size
+//
+//            // 진행률 계산 (2000바이트까지 95%로 표시)
+//            val progress = (totalReceivedBytes.toFloat() / 2000 * 0.95f).coerceIn(0f, 0.95f)
+//            _diagnosisProgress.value = progress
+//
+//            // 마지막 데이터 수신 시간 업데이트
+//            lastDataReceivedTime = System.currentTimeMillis()
+//
+//            // 2000바이트 이상일 때 완료 체크 시작
+//            if (totalReceivedBytes >= 2000) {
+//                checkCompletion()
+//            }
+//        }
+//    }
 
 
     private fun checkCompletion() {
@@ -101,8 +107,27 @@ class BluetoothViewModel(
 
     fun setBLEDataListener(listener: (ByteArray) -> Unit) {
         bleDataListener = listener
-    }
 
+        service.bleManager.setBLEDataListener { data ->
+            val dataCount = service.bleManager.getOriginalDataListSize()
+            val hexString = data.joinToString(" ") { "%02X".format(it) }
+
+            // 진행률 계산
+            val progress = (dataCount.toFloat() / PROGRESS_THRESHOLD * INITIAL_PROGRESS_MAX).coerceIn(0f, INITIAL_PROGRESS_MAX)
+            _diagnosisProgress.value = progress
+
+            // 95% 도달시 3초 후 100%
+            if (dataCount >= PROGRESS_THRESHOLD) {
+                completionJob?.cancel()
+                completionJob = viewModelScope.launch {
+                    delay(3000)
+                    _diagnosisProgress.value = FINAL_PROGRESS
+                }
+            }
+
+            listener.invoke(data)
+        }
+    }
 
     // originalDataList 크기를 가져오는 메서드
     fun getOriginalDataListSize(): Int {

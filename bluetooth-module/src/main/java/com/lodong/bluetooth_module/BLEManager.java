@@ -13,6 +13,8 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 
+//import com.lodong.poen.service.BluetoothForegroundService;
+
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -34,6 +36,21 @@ public class BLEManager {
     private NotificationCallback notificationCallback; // Notification 콜백 추가
     private BLEDataListener bleDataListener; // BLEDataListener 참조
     private final List<byte[]> originalDataList = new ArrayList<>();  // 원본 데이터 저장용 리스트 추가
+    private final List<String> serverDataList = new ArrayList<>();
+
+
+    private static final byte[] SENSOR_DATA_HEADER = {0x02, (byte)0x82, (byte)0x82, 0x00, 0x0E};
+    private static final byte[] END_HEADER = {(byte)0xAA, (byte)0xAA, 0x03};
+    private static final int HEADER_SIZE = 5;
+    private static final int END_SIZE = 3;
+    private static final int SENSOR_DATA_SIZE = 17;
+
+
+
+
+
+
+
 
     public BLEManager(Context context) {
         this.context = context.getApplicationContext();
@@ -44,9 +61,19 @@ public class BLEManager {
         }
     }
 
+
+    private BluetoothCallback bluetoothCallback;
+
     public boolean isBluetoothEnabled() {
         return bluetoothAdapter != null && bluetoothAdapter.isEnabled();
     }
+
+
+
+    public void setBluetoothCallback(BluetoothCallback callback) {
+        this.bluetoothCallback = callback;
+    }
+
 
 
     // BLE 스캔 시작
@@ -61,6 +88,8 @@ public class BLEManager {
             stopScan();
         }
 //스캔하는 부분임
+
+
         ScanSettings settings = new ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)  // 최대 스캔 속도
                 .setReportDelay(0)  // 결과 즉시 보고
@@ -68,6 +97,7 @@ public class BLEManager {
                 .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)
                 .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
                 .build();
+
 
         scanCallback = new ScanCallback() {
             @Override
@@ -87,11 +117,13 @@ public class BLEManager {
             }
 
 
+
             @Override
             public void onScanFailed(int errorCode) {
                 Log.e(TAG, "Scan failed with error code: " + errorCode);
             }
         };
+
 
         try {
             bluetoothAdapter.getBluetoothLeScanner().startScan(null, settings, scanCallback);
@@ -192,7 +224,9 @@ public class BLEManager {
 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
     byte[] data = characteristic.getValue();
 
-    // 원본 데이터 저장 및 로그
+
+
+    // 기존 originalDataList 처리 유지
     originalDataList.add(data);
     StringBuilder hexString = new StringBuilder();
     for (byte b : data) {
@@ -201,14 +235,115 @@ public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteris
     Log.d(TAG, "원본 데이터(" + originalDataList.size() + "번째): " + hexString.toString());
     Log.d(TAG, "누적된 원본 데이터 개수: " + originalDataList.size());
 
+    // 데이터 파싱 및 처리
+    processPacketData(data);
+
+    // 기존 리스너 콜백 유지
     if (bleDataListener != null) {
         bleDataListener.onDataReceived(data);
     }
+
+    if (bluetoothCallback != null) {
+        bluetoothCallback.onDataReceived(data);
+        bluetoothCallback.onDataReadyForTransfer();
+    }
+}
+
+            private void processPacketData(byte[] data) {
+                int index = 0;
+                while (index < data.length) {
+                    // 셋업 패킷 스킵 (02 82 80 또는 02 82 81로 시작하는 패킷)
+                    if (index + 2 < data.length &&
+                            data[index] == 0x02 &&
+                            data[index + 1] == (byte)0x82 &&
+                            (data[index + 2] == (byte)0x80 || data[index + 2] == (byte)0x81)) {
+
+                        // AA AA 03을 찾아서 그 다음으로 이동
+                        index = findNextEndHeader(data, index) + 3;
+                        continue;
+                    }
+
+                    // 센서 데이터 헤더 찾기 (02 82 82 00 0E)
+                    if (index + 4 < data.length &&
+                            data[index] == 0x02 &&
+                            data[index + 1] == (byte)0x82 &&
+                            data[index + 2] == (byte)0x82 &&
+                            data[index + 3] == 0x00 &&
+                            data[index + 4] == 0x0E) {
+
+                        // 헤더(5바이트) 건너뛰기
+                        index += 5;
+
+                        // 센서 데이터 17바이트(END 포함) 추출
+                        if (index + 17 <= data.length) {
+                            byte[] chunk = Arrays.copyOfRange(data, index, index + 17);
+                            synchronized(serverDataList) {
+                                for (byte b : chunk) {
+                                    serverDataList.add(String.format("%02X", b));
+                                }
+                                printServerData();
+
+                                Log.d(TAG, "저장된 17바이트 데이터(END 포함): " + bytesToHexString(chunk));
+                                Log.d(TAG, "현재 서버 데이터 크기: " + serverDataList.size());
+                            }
+                            index += 17;
+                        } else {
+                            break;
+                        }
+                    } else {
+                        index++;
+                    }
+            } }
+        });
+    }
+
+
+//서버로 보내는 데이터 17바이트씩 자르기 모음
+    // 유틸리티 메서드 추가
+private String bytesToHexString(byte[] bytes) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : bytes) {
+        sb.append(String.format("%02X ", b));
+    }
+    return sb.toString();
 }
 
 
-        });
+    private boolean isSensorDataHeader(byte[] data) {
+        for (int i = 0; i < HEADER_SIZE; i++) {
+            if (data[i] != SENSOR_DATA_HEADER[i]) {
+                return false;
+            }
+        }
+        return true;
     }
+
+    private boolean isEndHeader(byte[] data, int offset) {
+        if (offset + END_SIZE > data.length) return false;
+        for (int i = 0; i < END_SIZE; i++) {
+            if (data[offset + i] != END_HEADER[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+
+
+    private int findNextEndHeader(byte[] data, int startIndex) {
+        for (int i = startIndex; i < data.length - 2; i++) {
+            if (data[i] == (byte)0xAA &&
+                    data[i + 1] == (byte)0xAA &&
+                    data[i + 2] == 0x03) {
+                return i;
+            }
+        }
+        return data.length - 3;
+    }
+
+
+
 
     @SuppressLint("MissingPermission")
     public void subscribeToNotifications(BluetoothGatt gatt, String serviceUUID, String characteristicUUID, NotificationCallback callback) {
@@ -240,6 +375,48 @@ public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteris
             Log.e(TAG, "Descriptor not found for characteristic: " + characteristicUUID);
         }
     }
+
+    ////ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ 서버 전송용 데이터 반환
+    public List<String> getServerData() {
+        synchronized(serverDataList) {
+            return new ArrayList<>(serverDataList);
+        }
+    }
+
+    public int getServerDataSize() {
+        synchronized(serverDataList) {
+            return serverDataList.size();
+        }
+    }
+
+    public void resetServerData() {
+        synchronized(serverDataList) {
+            serverDataList.clear();
+            Log.d(TAG, "서버 전송용 데이터 초기화 완료. 현재 데이터 크기: " + serverDataList.size());
+        }
+    }
+
+    public void resetAllData() {
+        originalDataList.clear();
+        synchronized(serverDataList) {
+            serverDataList.clear();
+            Log.d(TAG, "모든 데이터 초기화 완료. 현재 서버 데이터 크기: " + serverDataList.size());
+        }
+    }
+
+    // BLEManager.java에 추가
+    public void printServerData() {
+        synchronized(serverDataList) {
+            Log.d(TAG, "========== 서버 전송 데이터 목록 ==========");
+            Log.d(TAG, "전체 데이터 크기: " + serverDataList.size());
+            Log.d(TAG, "데이터: " + String.join(" ", serverDataList));
+            Log.d(TAG, "=========================================");
+        }
+    }
+
+
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ서버측
+
 
     public interface DeviceFoundCallback {
         void onDeviceFound(BluetoothDevice device, @Nullable List<ParcelUuid> serviceUuids, int rssi);
@@ -279,9 +456,12 @@ public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteris
         return originalDataList.size();
     }
 //갯수 초기화임. originalDataList랑 다 연결되어있음. 문제 없다.
+
+
     public void resetOriginalDataList() {
         originalDataList.clear();
     }
+
 
 
 }

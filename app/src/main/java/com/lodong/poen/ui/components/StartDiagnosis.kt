@@ -84,12 +84,12 @@ fun StartDiagnosis(
                         characteristicUUID = characteristicUUID,
                         data = "StartDiagnosis".toByteArray(Charsets.UTF_8)
                     )
-                    addLog("데이터 전송 완료")
+//                    addLog("데이터 전송 완료")
 
                     when {
                         progress < 1.0f -> {
                             diagnosisMessage.value = "진단 중입니다... (${(progress * 100).toInt()}%)"
-                            addLog("진행률: ${(progress * 100).toInt()}%")
+//                            addLog("진행률: ${(progress * 100).toInt()}%")
                         }
                         progress >= 1.0f -> {
                             diagnosisMessage.value = "진단이 완료되었습니다."
@@ -111,7 +111,7 @@ fun StartDiagnosis(
     LaunchedEffect(progress) {
         if (progress < 1.0f) {
             diagnosisMessage.value = "진단 중입니다"
-            addLog("진행 중: ${(progress * 100).toInt()}%")
+//            addLog("진행 중: ${(progress * 100).toInt()}%")
         } else if (progress >= 1.0f) {
             diagnosisMessage.value = "진단이 완료되었습니다"
             dots.value = ""

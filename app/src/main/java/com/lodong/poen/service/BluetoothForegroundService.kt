@@ -19,26 +19,35 @@ import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.lodong.bluetooth_module.BLEManager
+import com.lodong.bluetooth_module.BluetoothCallback
 import com.lodong.poen.dto.batteryinfo.SensorDataDto
 import com.lodong.poen.repository.BinaryBleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import java.util.UUID
 
 
-class BluetoothForegroundService : Service() {
+class BluetoothForegroundService : Service() , BluetoothCallback {
 
-    private var isFirstDataIgnored = false // 첫 번째 데이터를 무시하기 위한 플래그
     private val collectedData = mutableListOf<ByteArray>() // 수집된 BLE 데이터
-    private var sendDataJob: Job? = null // 서버 송신 타이머 작업
-    private val delayTimeMillis: Long = 3000 // 3초 대기 시간
     private lateinit var repository: BinaryBleRepository
+    private val delayTimeMillis: Long = 3000 // 3초 대기
+    private var sendDataJob: Job? = null
 
     private val hwToAppProtocol = HwToAppProtocol(this)
+
+
+    private var isDataTransferScheduled = false // 전송 스케줄링 여부를 추적
+
+    private var isTransferring = false  // 전송 중인지 확인하는 플래그 추가
+
+
     companion object {
         private const val CHANNEL_ID = "BluetoothForegroundServiceChannel"
         private const val NOTIFICATION_ID = 1001
@@ -66,22 +75,82 @@ class BluetoothForegroundService : Service() {
         repository.setBluetoothService(this) // 서비스 인스턴스 전달
 
 
+        bleManager.setBluetoothCallback(this)
 
 
         startForegroundServiceWithType()
         initializeBLEListener() // BLEDataListener 초기화
 
 
-
-
-
-
-
-
-
-
-
     }
+    ////////////필수 메서드 구현ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+    override fun onDataReceived(data: ByteArray) {
+        Log.d(TAG, "onDataReceived: ${data.size} bytes")
+        synchronized(collectedData) {
+            collectedData.add(data)
+            CoroutineScope(Dispatchers.IO).launch {
+//                sendDataToServer()
+            }
+        }
+    }
+
+
+
+    override fun onDataReadyForTransfer() {
+        // 전송 중이면 새로운 전송 시작하지 않음
+        if (isTransferring) {
+            Log.d(TAG, "데이터 전송이 이미 진행 중입니다.")
+            return
+        }
+
+        val currentDataSize = bleManager.getServerDataSize()
+        Log.d(TAG, "현재 수집된 데이터 크기: $currentDataSize")
+
+        if (currentDataSize > 2000) {
+            isTransferring = true  // 전송 시작 표시
+
+            sendDataJob = CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    Log.d(TAG, "데이터가 2500개를 초과하여 3초 후 전송을 시작합니다.")
+                    delay(delayTimeMillis)
+
+                    withContext(NonCancellable) {  // 취소 불가능한 컨텍스트 사용
+                        sendDataToServer()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Data transfer failed: ${e.message}")
+                } finally {
+                    isTransferring = false  // 전송 완료 표시
+                    hwToAppProtocol.isSendingData = false
+                }
+            }
+        }
+    }
+
+
+    override fun onDataTransferComplete() {
+        Log.d(TAG, "Data transfer completed")
+        hwToAppProtocol.isSendingData = false
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     private fun startForegroundServiceWithType() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -263,7 +332,7 @@ class BluetoothForegroundService : Service() {
 
 
 
-//서버에서 받은 데이터를 앱으로 전달.
+    //서버에서 받은 데이터를 앱으로 전달.
     private fun splitDataIntoChunks(data: ByteArray, chunkSize: Int): List<ByteArray> {
         val chunks = mutableListOf<ByteArray>()
         var index = 0
@@ -334,6 +403,8 @@ class BluetoothForegroundService : Service() {
 
     // BluetoothForegroundService.kt
     private fun handleReceivedData(data: ByteArray) {
+        Log.d(TAG, "handleReceivedData 호출됨: ${data.size} bytes")
+
         // 배터리 ID 로그 추가
         val preferencesHelper = PreferencesHelper.getInstance(this)
         val batteryInfo = preferencesHelper.getBatteryInfo()
@@ -345,9 +416,11 @@ class BluetoothForegroundService : Service() {
             hwToAppProtocol.analyzeData(collectedData)
 
         }
-//        CoroutineScope(Dispatchers.IO).launch {
-////            sendDataToServer()
-//        }
+        CoroutineScope(Dispatchers.IO).launch {
+//            Log.d(TAG, "서버 전송 시작")
+
+//            sendDataToServer()
+        }
         /** 서버송신 **/
 
     }
@@ -356,7 +429,7 @@ class BluetoothForegroundService : Service() {
     fun notifyDataReadyForTransfer() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                sendDataToServer()
+//                sendDataToServer()
                 hwToAppProtocol.isSendingData = false
             } catch (e: Exception) {
                 Log.e("BluetoothService", "Data transfer failed: ${e.message}")
@@ -365,33 +438,66 @@ class BluetoothForegroundService : Service() {
         }
     }
 
-
     ////////// 5. 서버 전송//
     /// TODO: 이파트
-    public suspend fun sendDataToServer() {
+
+    private suspend fun sendDataToServer() {
         try {
-            Log.d("BluetoothService", "sendDataToServer 호출됨")
+            Log.d(TAG, "서버 전송 시작")
             val batteryId = PreferencesHelper.getInstance(this).getString("battery_id")
+
             if (!batteryId.isNullOrBlank()) {
-                val currentData = hwToAppProtocol.allCollectedData.toList()  // 현재 데이터 복사
-                if (currentData.isNotEmpty()) {
-                    Log.d("BluetoothService", "전송 시작: ${currentData.size} bytes")
-                    val sensorDataDtoList = listOf(SensorDataDto(data = currentData))
-                    val result = repository.sendCollectedData(batteryId, sensorDataDtoList)
-                    result.onSuccess {
-                        Log.d("BluetoothService", "전체 데이터 전송 성공")
-                        hwToAppProtocol.allCollectedData.clear()  // 전송 성공 시 데이터 클리어
-                    }.onFailure {
-                        Log.e("BluetoothService", "데이터 전송 실패: ${it.message}")
+                val serverData = bleManager.getServerData()
+
+                if (serverData.isNotEmpty()) {
+                    // 요청 데이터 로깅
+                    Log.d(TAG, "배터리 ID: $batteryId")
+                    Log.d(TAG, "전송할 데이터 크기: ${serverData.size}")
+                    Log.d(TAG, "전송할 데이터 샘플(처음 10개): ${serverData.take(10)}")
+                    val intData = serverData.map { hexStr ->
+                        hexStr.toInt(16)
                     }
+
+                    val fullDataString = serverData.joinToString(", ")
+                    Log.d(TAG, "전체 전송 데이터: $fullDataString")
+                    Log.d(TAG, "전송할 데이터 크기: ${serverData.size}")
+
+
+                    val sensorDataDtoList = listOf(SensorDataDto(data = intData))
+                    Log.d(TAG, "DTO 데이터 구조: $sensorDataDtoList")
+
+                    // API 요청 헤더 로깅
+                    val token = PreferencesHelper.getInstance(this).getAccessToken()
+                    Log.d(TAG, "Access Token 존재 여부: ${!token.isNullOrEmpty()}")
+
+                    withContext(Dispatchers.IO) {
+                        val result = repository.sendCollectedData(batteryId, sensorDataDtoList)
+                        result.onSuccess {
+                            Log.d(TAG, "데이터 전송 성공")
+                            // 전송 성공 후 데이터 초기화
+                            bleManager.resetServerData()
+                            bleManager.resetOriginalDataList()
+                            // 전송 성공 후 모든 데이터 초기화
+                            bleManager.resetAllData()
+
+                            Log.d(TAG, "데이터 초기화 완료. 현재 데이터 크기: ${bleManager.getServerDataSize()}")
+                        }.onFailure { error ->
+                            Log.e(TAG, "데이터 전송 실패: ${error.message}")
+                            Log.e(TAG, "Stack trace: ${error.stackTraceToString()}")
+                        }
+                    }
+
+
+                } else {
+                    Log.d(TAG, "전송할 데이터가 없습니다")
                 }
+            } else {
+                Log.e(TAG, "배터리 ID가 없습니다")
             }
         } catch (e: Exception) {
-            Log.e("BluetoothService", "데이터 전송 중 오류: ${e.message}")
-        } finally {
-            hwToAppProtocol.isSendingData = false  // 전송 상태 리셋
+            Log.e(TAG, "전송 중 오류 발생: ${e.message}")
+            throw e
         }
     }
-
 
 }

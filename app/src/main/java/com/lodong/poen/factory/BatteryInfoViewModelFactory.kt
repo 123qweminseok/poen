@@ -7,8 +7,8 @@ import com.lodong.poen.viewmodel.BatteryInfoViewModel
 class BatteryInfoViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BatteryInfoViewModel::class.java)) {
-            val repository = BatteryInfoRepository(context)
             val preferencesHelper = PreferencesHelper.getInstance(context) // PreferencesHelper 초기화
+            val repository = BatteryInfoRepository(preferencesHelper) // PreferencesHelper 전달
             return BatteryInfoViewModel(repository, preferencesHelper) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")

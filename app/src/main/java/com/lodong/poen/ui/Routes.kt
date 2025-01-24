@@ -18,4 +18,6 @@ sealed class Routes(val route: String) {
     object DiagnoseScreen : Routes("diagnose")
     object LoadingScreen : Routes("loading_screen")
     object PermissionRequestScreen : Routes("permission_request_screen")
+    object FindAccountPassword : Routes("find_account_password")
+
 }

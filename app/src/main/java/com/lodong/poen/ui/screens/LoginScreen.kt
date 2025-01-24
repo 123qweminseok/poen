@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,6 +21,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.lodong.poen.R
 import com.lodong.poen.ui.theme.hintColor
 import com.lodong.poen.ui.theme.primaryColor
@@ -30,13 +33,13 @@ import com.lodong.poen.viewmodel.LoginViewModel
 fun LoginScreen(
     loginViewModel: LoginViewModel,
     onLoginSuccess: () -> Unit,
-    onSignUpNavigation: () -> Unit
+    onSignUpNavigation: () -> Unit,
+    navController: NavController
 ) {
     val loginState = loginViewModel.loginState.value // ViewModel 상태 관찰
     val id = remember { mutableStateOf("") } // 아이디 상태 관리
     val password = remember { mutableStateOf("") } // 비밀번호 상태 관리
     val stayLoggedIn = remember { mutableStateOf(false) } // 로그인 유지 상태 관리
-
     // 로그인 유지 상태 확인
     LaunchedEffect(Unit) {
         if (loginViewModel.checkIfLoggedIn()) {
@@ -119,7 +122,14 @@ fun LoginScreen(
             Text(text = "로그인 유지", fontSize = 16.sp, color = Color.Black)
         }
 
-        Text(text = "아이디/비밀번호 찾기", modifier = Modifier.padding(vertical = 16.dp))
+        Text(
+            text = "아이디/비밀번호 찾기",
+            modifier = Modifier
+                .padding(vertical = 16.dp)
+                .clickable {
+                    navController.navigate("find_account_password")
+                }
+        )
 
         Divider(
             modifier = Modifier.fillMaxWidth(0.8f), color = primaryLight, thickness = 1.dp
@@ -129,7 +139,11 @@ fun LoginScreen(
 
 //         로그인 버튼
         Button(
-            onClick = { loginViewModel.login(id.value, password.value, stayLoggedIn.value) },
+            onClick = { loginViewModel.login(id.value, password.value, stayLoggedIn.value)
+//로그인시
+
+
+                      },
             modifier = Modifier.fillMaxWidth(0.8f),
             colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
             shape = RoundedCornerShape(8.dp)
@@ -150,9 +164,11 @@ fun LoginScreen(
             }
             is LoginViewModel.LoginUiState.Error -> {
                 Text(
-                    text = "로그인 실패: ${loginState.message}",
-                    color = Color.Red,
-                    modifier = Modifier.padding(16.dp)
+                    text = "로그인 실패: ${"다시 확인해주세요"}",
+                    color = Color(0xFFFF4D4D), // Bold red for title
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold
+                    )
                 )
             }
             else -> {}

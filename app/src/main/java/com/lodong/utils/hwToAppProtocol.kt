@@ -27,7 +27,7 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
     var isSendingData = false
 
 
-     val allCollectedData = mutableListOf<Int>()  // 전체 수집된 데이터를 저장하는 리스트
+    val allCollectedData = mutableListOf<Int>()  // 전체 수집된 데이터를 저장하는 리스트
 
     private var isSensorDataStarted = false
     private val buffer = mutableListOf<Byte>()
@@ -42,11 +42,13 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
         if (collectedData.isEmpty()) return
 
         val packet = collectedData.last()
+        Log.d(TAG, "수신된 패킷: ${bytesToHexString(packet)}") // 패킷 확인 로그
 
         when {
             // 1. Diagnosis Setup Response
             packet.size >= 5 && packet.take(5).toByteArray().contentEquals(DIAGNOSIS_START_HEADER) -> {
                 Log.d(TAG, "================================= Diagnosis Setup Begin ==================")
+                Log.d(TAG, "센서 데이터 헤더 감지")
 
                 // 전체 패킷 저장
                 processedData.add(packet)
@@ -121,60 +123,46 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
 
     private fun processPacketData(data: ByteArray) {
         buffer.addAll(data.toList())
+        Log.d(TAG, "현재 버퍼 크기: ${buffer.size}")
 
         // 17바이트씩 처리
         while (buffer.size >= 17) {
             val chunk = buffer.take(17).toByteArray()
             sendData.add(chunk)  // 로그 출력용 임시 저장
             logCounter++  // 카운터 증가
-            Log.d(TAG, "데이터 확인: ${bytesToHexString(chunk)}")
+//            Log.d(TAG, "데이터 확인: ${bytesToHexString(chunk)}")
 //            Log.d(TAG, "Chunk count: $logCounter")  // 현재까지의 청크 수 출력
+//            Log.d(TAG, "청크 데이터: ${chunk.joinToString(" ") { String.format("%02X", it) }}")
+
 
             // 데이터 수집 및 누적
             allCollectedData.addAll(chunk.map { it.toInt() }) //데이터 추가 계속
             accumulatedBytes += chunk.size // 누적 크기 증가
 
 
-//            Log.d(TAG,"=======서버로 전송하는 데이터${allCollectedData}=============")
+            Log.d(TAG,"=======서버로 전송하는 데이터${allCollectedData}=============")
             buffer.subList(0, 17).clear()
         }
 
-        // 데이터 전송 조건 체크 (2125바이트 이상)
-        if (accumulatedBytes >= 2125 && !isSendingData) {
+//        // 데이터 전송 조건 체크 (2125바이트 이상)
+//        if (accumulatedBytes >= 2000 && !isSendingData) {
 //            Log.d(TAG, "전송 시작: ${accumulatedBytes} bytes accumulated")
-            isSendingData = true
-            service.notifyDataReadyForTransfer()
-            accumulatedBytes = 0  // 리셋
-        }
+//            isSendingData = true
+//            service.notifyDataReadyForTransfer()
+//            accumulatedBytes = 0  // 리셋
+//        }
 
         // END_HEADER 체크
-        if (buffer.size >= 3) {
-            val lastBytes = buffer.takeLast(3).toByteArray()
-            if (lastBytes.contentEquals(END_HEADER)) {
-                sendData.add(lastBytes)
-                Log.d(TAG, "================== Sensor Data End =======================")
-                Log.d(TAG, "End Header: ${bytesToHexString(lastBytes)}")
-//                processFinalData()
-            }
-        }
+//        if (buffer.size >= 3) {
+//            val lastBytes = buffer.takeLast(3).toByteArray()
+//            if (lastBytes.contentEquals(END_HEADER)) {
+//                sendData.add(lastBytes)
+//                Log.d(TAG, "================== Sensor Data End =======================")
+//                Log.d(TAG, "End Header: ${bytesToHexString(lastBytes)}")
+//            }
+//        }
     }
 
-//    private fun processFinalData() {
-//        Log.d(TAG, "=== Processing Final Data ===")
-//        Log.d(TAG, "Total chunks in sendData: ${sendData.size}")
-//        Log.d(TAG, "Total accumulated data: ${processedData.size}")
-//
-//        if (buffer.isNotEmpty()) {
-//            val remainingData = buffer.toByteArray()
-//            sendData.add(remainingData)
-//            Log.d(TAG, "Remaining buffer: ${bytesToHexString(remainingData)}")
-//            Log.d(TAG, "Remaining size: ${buffer.size}")
-//        }
-//
-//        sendData.clear()  // 로그 출력용 데이터 초기화
-//        buffer.clear()
-//        isSensorDataStarted = false
-//    }
 
 
 

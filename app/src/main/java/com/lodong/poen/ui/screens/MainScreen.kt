@@ -1,5 +1,6 @@
 package com.lodong.poen.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -37,13 +38,24 @@ import com.lodong.poen.R
 import com.lodong.poen.ui.LeafImageButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowRight // ChevronRight 대신 사용 가능
+import androidx.navigation.NavController
+import com.lodong.poen.ui.navigation.Routes
+
 @Composable
 fun MainScreen(
     onSettingsNavigation: () -> Unit,
     onBatteryInfoNavigation: () -> Unit,
     onBluetoothNavigation: () -> Unit,
-    onDiagnoseNavigation: () -> Unit
-) {
+    onDiagnoseNavigation: () -> Unit,
+    navController: NavController
+
+) {    BackHandler {
+    // 메인화면에서 뒤로가기 시 로그인 화면으로 이동하며 스택 정리
+    navController.navigate(Routes.LoginScreen.route) {
+        popUpTo(Routes.MainScreen.route) { inclusive = true }
+    }
+}
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier

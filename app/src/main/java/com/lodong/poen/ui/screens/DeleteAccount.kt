@@ -1,24 +1,22 @@
 package com.lodong.poen.ui.screens
 
+import PreferencesHelper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,25 +24,39 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.lodong.apis.MemberApi
 import com.lodong.poen.R
 import com.lodong.poen.ui.InfoInputField
 import com.lodong.poen.ui.SettingsHeader
+import com.lodong.poen.ui.navigation.Routes
 import com.lodong.poen.ui.theme.lightSelector
 import com.lodong.poen.ui.theme.primaryColor
 import com.lodong.poen.ui.theme.primaryLight
+import kotlinx.coroutines.launch
+import android.util.Log
 
 @Composable
-@Preview
-fun DeleteAccountScreen() {
+fun DeleteAccountScreen(
+    api: MemberApi,
+    preferencesHelper: PreferencesHelper,
+    navController: NavController,
+    onBackButtonPressed: () -> Unit
+) {
     val labelTextStyle = TextStyle(
         color = Color.Black,
         fontWeight = FontWeight.SemiBold,
         fontSize = 12.sp
     )
     val labelSize = 96.dp
+
+    val password = remember { mutableStateOf("") }
+    val reason = remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -53,10 +65,10 @@ fun DeleteAccountScreen() {
             .background(Color.White)
     ) {
         SettingsHeader("회원탈퇴") {
+            onBackButtonPressed()
         }
         Divider(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             color = lightSelector,
             thickness = 2.dp
         )
@@ -100,10 +112,11 @@ fun DeleteAccountScreen() {
                 InfoInputField(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(36.dp),
+                        .height(56.dp), // 입력 칸 크기 확대
                     hint = "현재 비밀번호를 입력해주세요",
-                    value = "",
-                    onValueChange = {}
+                    value = password.value,
+                    onValueChange = { password.value = it },
+                    isPassword = true
                 )
             }
 
@@ -124,8 +137,8 @@ fun DeleteAccountScreen() {
                         .height(128.dp),
                     hint = "무엇이 불편하셨는지 남겨주시면 향후 적극 반영하여 더 나은 서비스를 제공하도록 하겠습니다.",
                     singleLine = false,
-                    value = "",
-                    onValueChange = {}
+                    value = reason.value,
+                    onValueChange = { reason.value = it }
                 )
             }
 
@@ -140,7 +153,7 @@ fun DeleteAccountScreen() {
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Button(
-                        onClick = {},
+                        onClick = { onBackButtonPressed() },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                         shape = RoundedCornerShape(8.dp),
                         border = BorderStroke(1.dp, primaryColor),
@@ -150,7 +163,42 @@ fun DeleteAccountScreen() {
                     }
                     Spacer(modifier = Modifier.size(8.dp))
                     Button(
-                        onClick = {},
+                        onClick = {
+                            if (password.value.isEmpty()) {
+                                errorMessage = "비밀번호를 입력해주세요"
+                                showErrorDialog = true
+                                return@Button
+                            }
+
+                            scope.launch {
+                                try {
+                                    val token = preferencesHelper.getAccessToken() ?: ""
+                                    val bearerToken = if (!token.startsWith("Bearer ")) "Bearer $token" else token
+
+                                    val response = api.deleteAccount(
+                                        MemberApi.DeleteAccountRequest(
+                                            password = password.value,
+                                            reason = reason.value
+                                        )
+
+                                    )
+                                    if (response.isSuccessful && response.body()?.status == 200) {
+                                        preferencesHelper.clear() // 토큰 등 저장된 데이터 삭제
+                                        navController.navigate(Routes.LoginScreen.route) {
+                                            popUpTo(0) // 스택 전체 제거
+                                        }
+                                    } else {
+                                        Log.e("DeleteAccount", "실패 - 상태 코드: ${response.code()}")
+                                        errorMessage = "탈퇴 처리에 실패했습니다"
+                                        showErrorDialog = true
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("DeleteAccount", "에러 발생", e)
+                                    errorMessage = "오류가 발생했습니다"
+                                    showErrorDialog = true
+                                }
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.height(36.dp)
@@ -168,6 +216,19 @@ fun DeleteAccountScreen() {
             contentScale = ContentScale.FillWidth,
             painter = painterResource(id = R.drawable.logo_transparant),
             contentDescription = "transparent logo"
+        )
+    }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("오류") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                Button(onClick = { showErrorDialog = false }) {
+                    Text("확인")
+                }
+            }
         )
     }
 }

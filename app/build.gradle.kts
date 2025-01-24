@@ -47,14 +47,19 @@ android {
     }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes+="**/*"
         }
     }
 }
 
 dependencies {
+
     implementation(libs.navigation.compose)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+
+
+
 
     implementation(libs.appcompat)
     implementation(libs.material)
@@ -70,6 +75,7 @@ dependencies {
     implementation(libs.common)
     implementation(libs.camera.camera2)
     implementation(project(":bluetooth-module"))
+    implementation(libs.firebase.appdistribution.gradle)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
@@ -79,14 +85,14 @@ dependencies {
     debugImplementation(libs.ui.tooling)
     debugImplementation(libs.ui.test.manifest)
 //    implementation("com.lodong.android:bluetooth-module:1.0.4")
-    implementation("com.lodong.android:utils:1.0.9")
+    implementation("com.lodong.android:utils:1.0.9") //여기에도
     implementation("com.squareup.retrofit2:retrofit:2.9.0") // Retrofit
     implementation("com.squareup.retrofit2:converter-gson:2.9.0") // Gson
     // Accompanist Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.30.1") // 최신 버전 확인
 
     // Compose Material3
-    implementation("androidx.compose.material3:material3:1.0.1") // 최신 버전 확인
+    implementation("androidx.compose.material3:material3:1.2.0") // 최신 버전 확인
 
     implementation("com.google.mlkit:barcode-scanning:17.0.3")
 
@@ -95,7 +101,7 @@ dependencies {
     implementation("androidx.camera:camera-core:1.4.0-alpha02")
     implementation("androidx.camera:camera-view:1.4.0-alpha02")
     implementation("androidx.camera:camera-lifecycle:1.4.0-alpha02")
-    implementation("com.google.mlkit:barcode-scanning:17.0.2")
+//    implementation("com.google.mlkit:barcode-scanning:17.0.2")
     implementation ("io.coil-kt:coil-compose:2.2.2")
 
     implementation("androidx.compose.ui:ui")
@@ -109,7 +115,14 @@ dependencies {
 
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
 
+
+    implementation ("com.google.guava:guava:31.1-android")
+    implementation ("androidx.concurrent:concurrent-futures-ktx:1.1.0")
+    implementation ("org.nanohttpd:nanohttpd:2.3.1")
+
+
     // Hilt를 사용하는 경우
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
+    implementation ("androidx.webkit:webkit:1.6.0")
 
 }

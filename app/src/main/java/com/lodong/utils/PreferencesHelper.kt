@@ -1,5 +1,6 @@
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import java.util.UUID
 
 class PreferencesHelper private constructor(context: Context) {
@@ -18,14 +19,18 @@ class PreferencesHelper private constructor(context: Context) {
         }
     }
 
-    fun saveTokens(accessToken: String, refreshToken: String) {
-        sharedPreferences.edit().apply {
-            putString("access_token", accessToken)
-            putString("refresh_token", refreshToken)
-            apply()
-        }
-    }
 
+    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+//서버에서 발급받은 access_token과 refresh_token을 SharedPreferences에 저장합니다:
+
+    fun saveTokens(accessToken: String, refreshToken: String) {
+        sharedPreferences.edit()
+            .putString("access_token", accessToken)
+            .putString("refresh_token", refreshToken)
+            .apply()
+        Log.d("PreferencesHelper", "Access Token 저장: $accessToken")
+        Log.d("PreferencesHelper", "Refresh Token 저장: $refreshToken")
+    }
     fun saveStayLoggedIn(stayLoggedIn: Boolean) {
         sharedPreferences.edit().putBoolean("stayLoggedIn", stayLoggedIn).apply()
     }
@@ -35,8 +40,42 @@ class PreferencesHelper private constructor(context: Context) {
     }
 
 
-    fun getAccessToken(): String? = sharedPreferences.getString("access_token", null)
-    fun getRefreshToken(): String? = sharedPreferences.getString("refresh_token", null)
+    fun getAccessToken(): String? {
+        // "access_token" 키로 불러옴
+        val token = sharedPreferences.getString("access_token", null)
+        Log.d("PreferencesHelper", "Getting access token: $token")
+
+        return sharedPreferences.getString("access_token", null)
+    }
+
+    fun clearAllData() {
+        sharedPreferences.edit().apply {
+            clear()
+            remove("access_token")
+            remove("refresh_token")
+            remove("stayLoggedIn")
+            remove("qr_code")
+            remove("battery_id")
+            remove("car_manufacturer_id")
+            remove("car_manufacturer_name")
+            remove("car_model_id")
+            remove("car_model_name")
+            remove("car_no")
+            remove("product_no")
+            remove("production_date")
+            remove("rom_id")
+            apply()
+        }
+    }
+
+
+
+    // Refresh Token 가져오기
+    fun getRefreshToken(): String? {
+        val token = sharedPreferences.getString("refresh_token", null)
+        Log.d("PreferencesHelper", "Refresh Token 불러오기: $token")
+        return token
+    }
 
     // QR 코드 저장
     fun saveQRCode(qrCode: String) {

@@ -3,6 +3,7 @@ package com.lodong.poen.viewmodel
 import PreferencesHelper
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lodong.poen.dto.batteryinfo.BatteryRequest
@@ -50,19 +51,27 @@ class BatteryInfoViewModel(
 
     fun fetchManufacturers() {
         viewModelScope.launch {
+            Log.d("BatteryInfoVM", "Fetching manufacturers")
+
             _loading.value = true
             _error.value = null
             try {
                 val result = repository.getManufacturerInfos()
                 result.fold(
                     onSuccess = { response ->
+                        Log.d("BatteryInfoVM", "Manufacturers fetched successfully: ${response.data}")
+
                         _manufacturers.value = response.data!! // Adjusting based on repository response
                     },
                     onFailure = { exception ->
+                        Log.e("BatteryInfoVM", "Failed to fetch manufacturers", exception)
+
                         _error.value = exception.message ?: "Unknown error occurred"
                     }
                 )
             } catch (e: Exception) {
+                Log.e("BatteryInfoVM", "Exception in fetchManufacturers", e)
+
                 _error.value = e.message ?: "An unexpected error occurred"
             } finally {
                 _loading.value = false
@@ -103,7 +112,20 @@ class BatteryInfoViewModel(
         romId: String,
         carManufacturerName:String,
         carModelName: String
-    ) {
+    )
+    {
+        Log.d("BatteryInfoVM", """
+        Saving to preferences:
+        - Battery ID: $batteryId
+        - Manufacturer ID: $carManufacturerId (Name: $carManufacturerName)
+        - Model ID: $carModelId (Name: $carModelName)
+        - Car No: $carNo
+        - Product No: $productNo
+        - Production Date: $productionDate
+        - ROM ID: $romId
+    """.trimIndent())
+
+
         preferencesHelper.saveBatteryInfo(
             batteryId = batteryId,
             carManufacturerId = carManufacturerId,
@@ -115,14 +137,25 @@ class BatteryInfoViewModel(
             carManufacturerName = carManufacturerName,
             carModelName=carModelName
         )
+
+        val savedInfo = preferencesHelper.getBatteryInfo()
+        Log.d("BatteryInfoVM", "Saved info verification: $savedInfo")
+
     }
 
     fun saveBatteryInfo(request: BatteryRequest,carManufacturerName: String,carModelName: String) {
         viewModelScope.launch {
+            Log.d("BatteryInfoVM", "Saving battery info - Request: $request")
+            Log.d("BatteryInfoVM", "Manufacturer Name: $carManufacturerName, Model Name: $carModelName")
+
             _loading.value = true
             val result = repository.uploadBatteryInfo(request)
             result.onSuccess { response ->
+                Log.d("BatteryInfoVM", "Upload success - Response: $response")
+
                 response.data?.let { batteryId ->
+                    Log.d("BatteryInfoVM", "Received battery ID: $batteryId")
+
                     saveBatteryInfoToPreferences(
                         batteryId = batteryId,
                         carManufacturerId = request.carManufacturerId,
@@ -135,9 +168,12 @@ class BatteryInfoViewModel(
                         carModelName = carModelName
                     )
                     _navigateToQRScreen.value = true // 상태 업데이트
-                }
-            }.onFailure {
-                _error.value = "저장 중 문제가 발생했습니다. 다시 시도해주세요."
+                } ?: Log.e("BatteryInfoVM", "Battery ID is null in response")
+
+            }.onFailure { error ->
+                Log.e("BatteryInfoVM", "Upload failed", error)
+                _error.value = "저장 중 문제가 발생했습니다. 다시 시도해주세요. Error: ${error.message}"
+
             }.also {
                 _loading.value = false
             }

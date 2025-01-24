@@ -47,6 +47,36 @@ class LoginViewModel(
         }
     }
 
+
+
+    fun findIdentifier(name: String, email: String, onSuccess: (String, String) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val response = signUpRepository.apiService.findIdentifier(mapOf("name" to name, "email" to email))
+                if (response.isSuccessful && response.body()?.status == 0) {
+                    val data = response.body()?.data
+                    if (data != null) {
+                        onSuccess(data.identifier, data.regDate)
+                    } else {
+                        onError("아이디 찾기 실패: 데이터가 없습니다.")
+                    }
+                } else {
+                    onError(response.body()?.resultMsg ?: "알 수 없는 오류")
+                }
+            } catch (e: Exception) {
+                onError("네트워크 오류: ${e.message}")
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
     // Check if user is logged in and "stayLoggedIn" is enabled
 // Check if user is logged in and "stayLoggedIn" is enabled
     fun checkIfLoggedIn(): Boolean {

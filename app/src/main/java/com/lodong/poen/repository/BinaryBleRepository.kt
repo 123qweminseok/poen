@@ -2,6 +2,7 @@ package com.lodong.poen.repository
 
 import com.lodong.poen.utils.HwToAppProtocol
 import PreferencesHelper
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.util.Log
 import com.lodong.apis.BlueToothApis
@@ -9,7 +10,7 @@ import com.lodong.poen.dto.batteryinfo.SensorDataDto
 import com.lodong.poen.service.BluetoothForegroundService
 import com.lodong.utils.ApiResponse
 import com.lodong.utils.ApiResponseResult
-import com.lodong.utils.RetrofitClient
+import com.lodong.poen.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
@@ -23,9 +24,7 @@ class BinaryBleRepository(private val context: Context) {
     private var hwToAppProtocol: HwToAppProtocol? = null
 
     private val apiService: BlueToothApis by lazy {
-        val accessToken = preferencesHelper.getAccessToken()
-        RetrofitClient.getInstance("https://beri-link.co.kr")
-            .setJwtToken(accessToken)
+        RetrofitClient.getInstance("https://beri-link.co.kr", preferencesHelper)
             .getApiService(BlueToothApis::class.java)
     }
 
@@ -47,6 +46,7 @@ class BinaryBleRepository(private val context: Context) {
             val response: Response<ApiResponse<String>> = apiService.getDataoneTime()
 
             if (response.isSuccessful) {
+
                 val apiResponse = response.body()
 
                 if (apiResponse != null && apiResponse.status == 200) {
@@ -74,7 +74,7 @@ class BinaryBleRepository(private val context: Context) {
         }
     }
 
-// 실제로 데이터 날리는 부분 서버로.
+// 실제로 데이터 날리는 부분 서버로.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
     suspend fun sendCollectedData(batteryId: String, dataToSend: List<SensorDataDto>): Result<Boolean> {
         return withContext(Dispatchers.IO) {
@@ -82,23 +82,27 @@ class BinaryBleRepository(private val context: Context) {
                 if (dataToSend.isNotEmpty()) {
                     val response = apiService.sendMeasurements(batteryId, dataToSend)
 
-                    //서버의 응답을 받는 부분임  위에서 응답 날렸으니까
                     if (response.isSuccessful) {
                         val responseBody = response.body()
                         if (responseBody != null && responseBody.status == 200) {
                             Result.success(true)
                         } else {
-                            Result.failure(Exception("Error: ${responseBody?.resultMsg ?: "Unknown error"}"))
+                            val errorMessage = responseBody?.resultMsg ?: "Unknown error"
+                            Log.e(TAG, "Error response body: $errorMessage")
+                            Result.failure(Exception("Error: $errorMessage"))
                         }
                     } else {
-                        Result.failure(Exception("API call failed: ${response.code()} - ${response.message()}"))
+                        val errorBody = response.errorBody()?.string()
+                        Log.e(TAG, "Error response code: ${response.code()}")
+                        Log.e(TAG, "Error body: $errorBody")
+                        Result.failure(Exception("API call failed: ${response.code()} - $errorBody"))
                     }
                 } else {
                     Result.failure(Exception("No data to send"))
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Exception during API call", e)
                 Result.failure(e)
             }
         }
-    }
-}
+    }}

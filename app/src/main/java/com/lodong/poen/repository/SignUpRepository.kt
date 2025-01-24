@@ -1,16 +1,14 @@
 package com.lodong.poen.repository
 
-import com.lodong.apis.BlueToothApis
+import PreferencesHelper
+import com.lodong.apis.MemberApi
 import com.lodong.apis.SignUpApis
-import com.lodong.utils.RetrofitClient
+import com.lodong.poen.network.RetrofitClient
 
-class SignUpRepository {
-    val apiService: SignUpApis = RetrofitClient.getInstance("https://beri-link.co.kr").getApiService(
-        SignUpApis::class.java)
+class SignUpRepository(private val preferencesHelper: PreferencesHelper) {
+    private val retrofit = RetrofitClient("https://beri-link.co.kr", preferencesHelper)
+    val apiService: SignUpApis = retrofit.getApiService(SignUpApis::class.java)
 
-
-    fun getSignUpApis(): SignUpApis {
-        return apiService  // 직접 apiService 반환
-    }
-
+    fun getSignUpApis(): SignUpApis = apiService
+    fun createMemberApi(): MemberApi = retrofit.getApiService(MemberApi::class.java)
 }

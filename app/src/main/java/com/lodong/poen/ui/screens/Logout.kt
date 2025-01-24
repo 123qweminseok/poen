@@ -1,5 +1,6 @@
 package com.lodong.poen.ui.screens
 
+import PreferencesHelper
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -25,25 +26,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.lodong.poen.R
 import com.lodong.poen.ui.SettingsHeader
+import com.lodong.poen.ui.navigation.Routes
 import com.lodong.poen.ui.theme.lightSelector
 import com.lodong.poen.ui.theme.primaryLight
 
 @Composable
-@Preview
-fun LogoutScreen() {
+fun LogoutScreen(
+    navController: NavController,
+    preferencesHelper: PreferencesHelper
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        SettingsHeader("로그아웃") {
-        }
+        SettingsHeader("로그아웃") { }
         Divider(
-            modifier = Modifier
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             color = lightSelector,
             thickness = 2.dp
         )
@@ -54,13 +57,18 @@ fun LogoutScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "안녕하세요 홍길동님 POEN입니다.\n계정을 로그아웃합니다.",
+                text = "안녕하세요 POEN입니다.\n계정을 로그아웃합니다.",
                 textAlign = TextAlign.Center,
                 fontSize = 16.sp
             )
             Spacer(modifier = Modifier.padding(16.dp))
             Button(
-                onClick = {},
+                onClick = {
+                    preferencesHelper.clearAllData() // 모든 사용자 데이터 삭제
+                    navController.navigate(Routes.LoginScreen.route) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
                 shape = RectangleShape,
                 modifier = Modifier
