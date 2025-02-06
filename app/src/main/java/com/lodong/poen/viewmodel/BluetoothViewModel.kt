@@ -50,7 +50,16 @@ class BluetoothViewModel(
     private val _diagnosisProgress = MutableStateFlow(0f)
     val diagnosisProgress: StateFlow<Float> = _diagnosisProgress
     private var totalReceivedBytes = 0
-    private val expectedTotalBytes = 2125 // 예상되는 총 데이터 크기
+    private val TOTAL_BLE_DATA = 2000  // 수신할 총 데이터
+
+    private val TOTAL_CHUNK_DATA = 2000  // 송신할 총 데이터
+    private val CHUNK_SIZE = 20  // 각 청크의 크기
+    private val TOTAL_DATA_COUNT = TOTAL_BLE_DATA + TOTAL_CHUNK_DATA  // 전체 데이터
+
+
+
+
+
 
     private var bleDataListener: ((ByteArray) -> Unit)? = null
     private var lastDataReceivedTime = 0L
@@ -60,69 +69,101 @@ class BluetoothViewModel(
     private  val INITIAL_PROGRESS_MAX = 0.99f  // 95%
     private  val FINAL_PROGRESS = 1.0f  // 100%
 
+    private var receivedDataCount = 0  // 수신 데이터 카운트
+    private var sentChunkCount = 0     // 송신 데이터 카운트
 
 
     private var chunkListener: ((ByteArray) -> Unit)? = null
 
 
     fun setChunkListener(listener: (ByteArray) -> Unit) {
-        chunkListener = listener
-    }
-
-
-    private fun checkCompletion() {
-        completionJob?.cancel()
-        completionJob = viewModelScope.launch {
-            delay(3000) // 3초 대기
-
-            // 3초 동안 새로운 데이터가 없었다면 완료 처리
-            if (System.currentTimeMillis() - lastDataReceivedTime >= 3000) {
-                _diagnosisProgress.value = 1.0f
-            }
+        chunkListener = { chunk ->
+            sentChunkCount++  // 송신 청크 증가
+            updateProgress()
+            listener.invoke(chunk)
         }
     }
+
+
+//    private fun checkCompletion() {
+//        completionJob?.cancel()
+//        completionJob = viewModelScope.launch {
+//            delay(3000) // 3초 대기
+//
+//            // 3초 동안 새로운 데이터가 없었다면 완료 처리
+//            if (System.currentTimeMillis() - lastDataReceivedTime >= 3000) {
+//                _diagnosisProgress.value = 1.0f
+//            }
+//        }
+//    }
 
     fun setBLEDataListener(listener: (ByteArray) -> Unit) {
         bleDataListener = listener
-
         service.bleManager.setBLEDataListener { data ->
-            val dataCount = service.bleManager.getOriginalDataListSize()
             val hexString = data.joinToString(" ") { "%02X".format(it) }
+            receivedDataCount = service.bleManager.getOriginalDataListSize()  // 실제 수신된 데이터 개수 반영
 
-            // 진행률 계산
-            val progress = (dataCount.toFloat() / PROGRESS_THRESHOLD * INITIAL_PROGRESS_MAX).coerceIn(0f, INITIAL_PROGRESS_MAX)
-            _diagnosisProgress.value = progress
+            Log.d("BLEDataListener", "Data received: $hexString")
+            Log.d("BLEDataListener", "Total received count: $receivedDataCount")
 
-            // 95% 도달시 3초 후 100%
-            if (dataCount >= PROGRESS_THRESHOLD) {
-                completionJob?.cancel()
-                completionJob = viewModelScope.launch {
-                    delay(3000)
-                    _diagnosisProgress.value = FINAL_PROGRESS
-                }
-            }
-
+            updateProgress()
             listener.invoke(data)
         }
     }
-
     // originalDataList 크기를 가져오는 메서드
     fun getOriginalDataListSize(): Int {
         return service.bleManager.getOriginalDataListSize()
     }
 
 
-    private fun updateDiagnosisProgress(receivedBytes: Int) {
-        totalReceivedBytes += receivedBytes
-        val progress = (totalReceivedBytes.toFloat() / expectedTotalBytes).coerceIn(0f, 1f)
-        _diagnosisProgress.value = progress
+
+
+
+    private fun updateProgress() {
+        Log.d("Progress", "Data counts - Received: $receivedDataCount/127, Chunks: $sentChunkCount/62")
+
+        // 패킷 기준으로 수신 진행률 계산 (총 127개 패킷)
+        val receiveProgress = (receivedDataCount.toFloat() / 127f).coerceIn(0f, 1.0f)
+
+        // 송신 진행률 계산 (총 62개 청크)
+        val sendProgress = (sentChunkCount.toFloat() / 62f).coerceIn(0f, 1.0f)
+
+        // 가중치 조정 (수신 90%, 송신 10%)
+        var totalProgress = ((receiveProgress * 0.9f) + (sendProgress * 0.1f)).coerceIn(0f, 0.99f)
+
+        // 모든 데이터가 수신되었을 때 (127개 패킷, 62개 청크)
+        if (receivedDataCount >= 125 && sentChunkCount >= 62) {
+            // 3초 딜레이 후 100%로 설정
+            completionJob?.cancel()
+            completionJob = viewModelScope.launch {
+                delay(3000)
+                _diagnosisProgress.value = 1.0f
+                return@launch
+            }
+        } else {
+            _diagnosisProgress.value = totalProgress
+        }
+
+        Log.d("Progress", """
+        Progress Details:
+        - Receive: ${receiveProgress * 100}%
+        - Send: ${sendProgress * 100}%
+        - Total: ${totalProgress * 100}%
+    """.trimIndent())
     }
 
-    fun startDiagnosis() {
-        totalReceivedBytes = 0
-        _diagnosisProgress.value = 0f
-        service.bleManager.resetOriginalDataList() // originalDataList 초기화 추가  ///로그 찍히는 부분 초기화임. 진단 시작 누를시 로그 찍히는데 첫번째부터 진행.
 
+//    private fun updateDiagnosisProgress(receivedBytes: Int) {
+//        totalReceivedBytes += receivedBytes
+//        val progress = (totalReceivedBytes.toFloat() / expectedTotalBytes).coerceIn(0f, 1f)
+//        _diagnosisProgress.value = progress
+//    }
+
+    fun startDiagnosis() {
+        receivedDataCount = 0
+        sentChunkCount = 0
+        _diagnosisProgress.value = 0f
+        service.bleManager.resetOriginalDataList()
     }
 
 
@@ -258,9 +299,8 @@ class BluetoothViewModel(
         serviceUUID: String,
         characteristicUUID: String,
         data: ByteArray,
-        onChunkSent: ((ByteArray) -> Unit)? = null  // 파라미터 추가
-    )
-    {
+
+    ) {
         if (gatt == null) {
             Log.e("BluetoothViewModel", "BluetoothGatt is null")
             return

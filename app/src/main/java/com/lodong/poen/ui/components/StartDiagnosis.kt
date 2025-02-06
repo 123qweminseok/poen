@@ -79,6 +79,8 @@ fun StartDiagnosis(
     // 진단 준비 완료 후 진단 시작 플래그 설정
     LaunchedEffect(Unit) {
         delay(500)
+        bluetoothViewModel.startDiagnosis()  // 추가
+
         shouldStartDiagnosis.value = true
     }
 
