@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ해당 클래스 필요 없음ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 class HwToAppProtocol(private val service: BluetoothForegroundService) {
     companion object {
         private const val TAG = "HwToAppProtocol"
@@ -46,8 +47,12 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
 
         when {
             // 1. Diagnosis Setup Response
-            packet.size >= 5 && packet.take(5).toByteArray().contentEquals(DIAGNOSIS_START_HEADER) -> {
-                Log.d(TAG, "================================= Diagnosis Setup Begin ==================")
+            packet.size >= 5 && packet.take(5).toByteArray()
+                .contentEquals(DIAGNOSIS_START_HEADER) -> {
+                Log.d(
+                    TAG,
+                    "================================= Diagnosis Setup Begin =================="
+                )
                 Log.d(TAG, "센서 데이터 헤더 감지")
 
                 // 전체 패킷 저장
@@ -67,82 +72,91 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
                 if (endHeader.contentEquals(END_HEADER)) {
                     sendData.add(endHeader)
                     Log.d(TAG, "End Header: ${bytesToHexString(endHeader)}")
-                    Log.d(TAG, "=============================== Diagnosis Setup End ===================")
+                    Log.d(
+                        TAG,
+                        "=============================== Diagnosis Setup End ==================="
+                    )
                     sendData.clear()  // 로그 출력 후 초기화
                 }
             }
 
-            // 2. Sensor Setup Response
-            packet.size >= 5 && packet.take(5).toByteArray().contentEquals(SENSOR_START_HEADER) -> {
-                Log.d(TAG, "================================= Sensor Setup Begin ==================")
-
-                // 전체 패킷 저장
-                processedData.add(packet)
-
-                sendData.add(packet.take(5).toByteArray())
-                Log.d(TAG, "Begin Header: ${bytesToHexString(sendData.last())}")
-
-                if (packet.size > 5) {
-                    val sizeData = byteArrayOf(packet[5])
-                    sendData.add(sizeData)
-                    Log.d(TAG, "Size Data: ${String.format("%02X", packet[5])}")
-                }
-
-                val endHeader = packet.takeLast(3).toByteArray()
-                if (endHeader.contentEquals(END_HEADER)) {
-                    sendData.add(endHeader)
-                    Log.d(TAG, "End Header: ${bytesToHexString(endHeader)}")
-                    Log.d(TAG, "================================= Sensor Setup End ==================")
-                    sendData.clear()  // 로그 출력 후 초기화
-                }
-            }
-
+//            // 2. Sensor Setup Response
+//            packet.size >= 5 && packet.take(5).toByteArray().contentEquals(SENSOR_START_HEADER) -> {
+//                Log.d(
+//                    TAG,
+//                    "================================= Sensor Setup Begin =================="
+//                )
+//
+//                // 전체 패킷 저장
+//                processedData.add(packet)
+//
+//                sendData.add(packet.take(5).toByteArray())
+//                Log.d(TAG, "Begin Header: ${bytesToHexString(sendData.last())}")
+//
+//                if (packet.size > 5) {
+//                    val sizeData = byteArrayOf(packet[5])
+//                    sendData.add(sizeData)
+//                    Log.d(TAG, "Size Data: ${String.format("%02X", packet[5])}")
+//                }
+//
+//                val endHeader = packet.takeLast(3).toByteArray()
+//                if (endHeader.contentEquals(END_HEADER)) {
+//                    sendData.add(endHeader)
+//                    Log.d(TAG, "End Header: ${bytesToHexString(endHeader)}")
+//                    Log.d(
+//                        TAG,
+//                        "================================= Sensor Setup End =================="
+//                    )
+//                    sendData.clear()  // 로그 출력 후 초기화
+//                }
+//            }
+//
             // 3. Sensor Data
-            packet.size >= 5 && packet.take(5).toByteArray().contentEquals(SENSOR_DATA_HEADER) -> {
-                // 전체 패킷 저장
-                processedData.add(packet)
+//            packet.size >= 5 && packet.take(5).toByteArray().contentEquals(SENSOR_DATA_HEADER) -> {
+//                // 전체 패킷 저장
+//                processedData.add(packet)
+//
+//                // 헤더를 아직 출력하지 않았을 때만 출력
+//                if (!isSensorDataStarted) {
+//                    Log.d(TAG, "================================= Sensor Data Begin ==================")
+//                    sendData.add(packet.take(5).toByteArray())
+//                    Log.d(TAG, "Begin Header: ${bytesToHexString(sendData.last())}")
+//                    isSensorDataStarted = true
+//                    buffer.clear()
+//                }
+//
+//                if (packet.size > 5) {
+//                    val sensorData = packet.copyOfRange(5, packet.size)
+//                    processPacketData(sensorData)
+//                }
+//            }
+//
+//
+//        }
+//    }
 
-                // 헤더를 아직 출력하지 않았을 때만 출력
-                if (!isSensorDataStarted) {
-                    Log.d(TAG, "================================= Sensor Data Begin ==================")
-                    sendData.add(packet.take(5).toByteArray())
-                    Log.d(TAG, "Begin Header: ${bytesToHexString(sendData.last())}")
-                    isSensorDataStarted = true
-                    buffer.clear()
-                }
-
-                if (packet.size > 5) {
-                    val sensorData = packet.copyOfRange(5, packet.size)
-                    processPacketData(sensorData)
-                }
-            }
-
-
-        }
-    }
-
-    private fun processPacketData(data: ByteArray) {
-        buffer.addAll(data.toList())
-        Log.d(TAG, "현재 버퍼 크기: ${buffer.size}")
-
-        // 17바이트씩 처리
-        while (buffer.size >= 17) {
-            val chunk = buffer.take(17).toByteArray()
-            sendData.add(chunk)  // 로그 출력용 임시 저장
-            logCounter++  // 카운터 증가
+//    private fun processPacketData(data: ByteArray) {
+//        buffer.addAll(data.toList())
+//        Log.d(TAG, "현재 버퍼 크기: ${buffer.size}")
+//
+//        // 17바이트씩 처리
+//        while (buffer.size >= 17) {
+//            val chunk = buffer.take(17).toByteArray()
+//            sendData.add(chunk)  // 로그 출력용 임시 저장
+//            logCounter++  // 카운터 증가
 //            Log.d(TAG, "데이터 확인: ${bytesToHexString(chunk)}")
 //            Log.d(TAG, "Chunk count: $logCounter")  // 현재까지의 청크 수 출력
 //            Log.d(TAG, "청크 데이터: ${chunk.joinToString(" ") { String.format("%02X", it) }}")
-
-
-            // 데이터 수집 및 누적
-            allCollectedData.addAll(chunk.map { it.toInt() }) //데이터 추가 계속
-            accumulatedBytes += chunk.size // 누적 크기 증가
-
-
-            Log.d(TAG,"=======서버로 전송하는 데이터${allCollectedData}=============")
-            buffer.subList(0, 17).clear()
-        }
+//
+//
+//            // 데이터 수집 및 누적
+//            allCollectedData.addAll(chunk.map { it.toInt() }) //데이터 추가 계속
+//            accumulatedBytes += chunk.size // 누적 크기 증가
+//
+//
+//            Log.d(TAG,"=======서버로 전송하는 데이터${allCollectedData}=============")
+//            buffer.subList(0, 17).clear()
+//        }
 
 //        // 데이터 전송 조건 체크 (2125바이트 이상)
 //        if (accumulatedBytes >= 2000 && !isSendingData) {
@@ -152,7 +166,7 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
 //            accumulatedBytes = 0  // 리셋
 //        }
 
-        // END_HEADER 체크
+            // END_HEADER 체크
 //        if (buffer.size >= 3) {
 //            val lastBytes = buffer.takeLast(3).toByteArray()
 //            if (lastBytes.contentEquals(END_HEADER)) {
@@ -161,10 +175,10 @@ class HwToAppProtocol(private val service: BluetoothForegroundService) {
 //                Log.d(TAG, "End Header: ${bytesToHexString(lastBytes)}")
 //            }
 //        }
+//    }
+
+
+        }
     }
-
-
-
-
 
 }

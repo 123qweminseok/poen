@@ -56,32 +56,18 @@ class BluetoothViewModel(
     private var lastDataReceivedTime = 0L
 
     private var completionJob: Job? = null
-    private  val PROGRESS_THRESHOLD = 95  // 데이터 기준점
-    private  val INITIAL_PROGRESS_MAX = 0.95f  // 95%
+    private  val PROGRESS_THRESHOLD = 99  // 데이터 기준점
+    private  val INITIAL_PROGRESS_MAX = 0.99f  // 95%
     private  val FINAL_PROGRESS = 1.0f  // 100%
 
 
 
-//    init {
-//        service.bleManager.setBLEDataListener { data ->
-//            bleDataListener?.invoke(data)
-//
-//            // 바이트 크기 누적
-//            totalReceivedBytes += data.size
-//
-//            // 진행률 계산 (2000바이트까지 95%로 표시)
-//            val progress = (totalReceivedBytes.toFloat() / 2000 * 0.95f).coerceIn(0f, 0.95f)
-//            _diagnosisProgress.value = progress
-//
-//            // 마지막 데이터 수신 시간 업데이트
-//            lastDataReceivedTime = System.currentTimeMillis()
-//
-//            // 2000바이트 이상일 때 완료 체크 시작
-//            if (totalReceivedBytes >= 2000) {
-//                checkCompletion()
-//            }
-//        }
-//    }
+    private var chunkListener: ((ByteArray) -> Unit)? = null
+
+
+    fun setChunkListener(listener: (ByteArray) -> Unit) {
+        chunkListener = listener
+    }
 
 
     private fun checkCompletion() {
@@ -95,15 +81,6 @@ class BluetoothViewModel(
             }
         }
     }
-
-
-
-
-
-
-
-
-    val currentDataCount = service.bleManager.getOriginalDataListSize()
 
     fun setBLEDataListener(listener: (ByteArray) -> Unit) {
         bleDataListener = listener
@@ -178,13 +155,6 @@ class BluetoothViewModel(
 
 
 
-
-
-
-
-
-
-
     companion object {
         var instance: BluetoothViewModel? = null
 
@@ -199,36 +169,6 @@ class BluetoothViewModel(
             return instance!!
         }
     }
-
-
-//    fun refreshConnectedDevices() {
-//        // 현재 연결된 디바이스들의 상태만 업데이트
-//        _devices.value = _devices.value.map { deviceWithStatus ->
-//            if (deviceWithStatus.status == PairingStatus.Success) {
-//                if (ActivityCompat.checkSelfPermission(
-//                        this,
-//                        Manifest.permission.BLUETOOTH_CONNECT
-//                    ) != PackageManager.PERMISSION_GRANTED
-//                ) {
-//                    // TODO: Consider calling
-//                    //    ActivityCompat#requestPermissions
-//                    // here to request the missing permissions, and then overriding
-//                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-//                    //                                          int[] grantResults)
-//                    // to handle the case where the user grants the permission. See the documentation
-//                    // for ActivityCompat#requestPermissions for more details.
-//                    return
-//                }
-//                if (deviceWithStatus.gatt?.device?.bondState == BluetoothDevice.BOND_BONDED) {
-//                    deviceWithStatus // 연결된 상태 유지
-//                } else {
-//                    deviceWithStatus.copy(status = PairingStatus.Idle, gatt = null)
-//                }
-//            } else {
-//                deviceWithStatus
-//            }
-//        }
-//    }
 
     fun startBleScan() {
         val context = service.applicationContext
@@ -309,13 +249,18 @@ class BluetoothViewModel(
     }
 
 
+
+    //11111111111111111111111111111111111111111111 서버에서 가져옴.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
     @SuppressLint("MissingPermission")
     suspend fun sendDataToDevice(
         gatt: BluetoothGatt?,
         serviceUUID: String,
         characteristicUUID: String,
-        data: ByteArray
-    ) {
+        data: ByteArray,
+        onChunkSent: ((ByteArray) -> Unit)? = null  // 파라미터 추가
+    )
+    {
         if (gatt == null) {
             Log.e("BluetoothViewModel", "BluetoothGatt is null")
             return
@@ -326,9 +271,6 @@ class BluetoothViewModel(
 
             when (result) {
                 is ApiResponseResult.Success -> {
-
-//                    /** 스트링인경우 **/
-//                    val data = result.data?.toByteArray() ?: ByteArray(0) // null인 경우 빈 ByteArray로 처리
 
 
                     /** 가공 **/
@@ -343,13 +285,17 @@ class BluetoothViewModel(
                     }
                     Log.d("BluetoothViewModel", "Sending data: $data")
 
-                    // 데이터를 BLE 장치로 전송
+
+                    // 서버에서 받아온 데이터가 비어있지 않을시, BluetoothForegroundSevice의 메서드 호출.
                     if (processedData.isNotEmpty()) {
                         service.sendDataToDevice(
                             gatt,
                             serviceUUID,
                             characteristicUUID,
-                            processedData
+                            processedData,
+                            onChunkSent = { chunk ->
+                                chunkListener?.invoke(chunk)
+                            }
                         )
                     } else {
                         Log.e("BluetoothViewModel", "Processed data is empty. Nothing to send.")

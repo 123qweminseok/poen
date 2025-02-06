@@ -22,6 +22,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lodong.poen.ui.FieldLabel
 import com.lodong.poen.R
 import com.lodong.poen.ui.SelectorField
@@ -40,6 +42,7 @@ import com.lodong.poen.ui.theme.lightSelector
 import com.lodong.poen.ui.theme.primaryColor
 import com.lodong.poen.ui.theme.primaryLight
 import com.lodong.poen.ui.theme.primaryLighter
+import com.lodong.poen.viewmodel.InquiryViewModel
 
 private enum class Tabs {
     INQUIRY, INQUIRY_HISTORY
@@ -123,8 +126,12 @@ fun InquiryForm(
     onTitleChange: (String) -> Unit,
     content: String,
     onContentChange: (String) -> Unit,
-    onSave: () -> Unit
-) {
+    onSave: () -> Unit,
+    viewModel: InquiryViewModel = viewModel(factory = InquiryViewModel.Factory)
+){
+
+    val scope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier.padding(horizontal = 32.dp), horizontalAlignment = Alignment.Start
     ) {

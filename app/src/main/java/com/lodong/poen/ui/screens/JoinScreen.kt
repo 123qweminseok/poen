@@ -417,6 +417,13 @@ fun SignUpScreen(
                     onValueChange = { zipCode.value = it }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
+
+
+
+
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
                 CustomBrownButton(
                     onClick = {
                         println("우편번호 검색 버튼 클릭됨") // 로그 추가
@@ -426,18 +433,36 @@ fun SignUpScreen(
                 )
 // 기존 dialog 호출 부분 수정
                 if (showZipDialog) {
-                    ZipCodeSearchDialog(
-                        onClose = { showZipDialog = true },
+                    DaumPostcodeDialog(
                         onAddressSelected = { addressJson ->
-                            val address = Json.decodeFromString<AddressData>(addressJson)
-                            zipCode.value = address.zonecode
-                            defaultAddress.value = address.address
+                            // 다이얼로그 내부에서 선택된 주소가 JSON 형태로 넘어옴
+                            val data = kotlinx.serialization.json.Json.decodeFromString<ZipAddressData>(addressJson)
+                            // ZipAddressData = (zonecode, address, extraAddress 등)
+
+                            // 여기서 JoinScreen의 zipCode.value를 채운다
+                            zipCode.value = data.zonecode
+                            // 다른 필드도 필요하다면 더 설정
+                            // defaultAddress.value = data.address
+
+                            // 다이얼로그 닫기
+                            showZipDialog = false
+                        },
+                        onDismissRequest = {
                             showZipDialog = false
                         }
                     )
                 }
 
             }
+
+
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+
+
 
 // 기본 주소 입력
             Row(
@@ -837,4 +862,7 @@ fun SignUpScreen(
             }
         }
     )
+
+
+
 }

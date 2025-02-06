@@ -53,7 +53,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         private const val NOTIFICATION_ID = 1001
     }
 
-    private val bluetoothViewModel = BluetoothViewModel.instance
+//    private val bluetoothViewModel = BluetoothViewModel.instance
 
     private var currentMtu: Int? = null
     public  lateinit var bleManager: BLEManager
@@ -72,7 +72,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         Log.d("BluetoothForegroundService", "Service created")
         bleManager = BLEManager(applicationContext)
         repository = BinaryBleRepository(applicationContext) // Repository 초기화
-        repository.setBluetoothService(this) // 서비스 인스턴스 전달
+//        repository.setBluetoothService(this) // 서비스 인스턴스 전달
 
 
         bleManager.setBluetoothCallback(this)
@@ -278,14 +278,19 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         })
     }
 
-    ////////// 서버에서 데이터를 받고, 폰에서 BLE 데이터 전송/////////
+///////////////////////블루투스 장치에 데이터를 보내기 위한것임.//
+    //1) BLE 장치로 데이터 전송하는 부분
+//각 청크를 writeCharacteristic()을 통해 BLE 장치로 전송
+//하는 방식으로 동작합니다.
     @SuppressLint("MissingPermission")
     fun sendDataToDevice(
         gatt: BluetoothGatt?,
         serviceUUID: String,
         characteristicUUID: String,
-        data: ByteArray
-    ) {
+        data: ByteArray,
+        onChunkSent: ((ByteArray) -> Unit)? = null
+
+) {
         if (gatt == null) {
             Log.e("BluetoothForegroundService", "BluetoothGatt is null")
             return
@@ -316,6 +321,10 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         for (chunk in chunks) {
             characteristic.value = chunk
             val success = gatt.writeCharacteristic(characteristic)
+            if (success) {
+                onChunkSent?.invoke(chunk)  // 청크 전송 콜백
+            }
+
             if (!success) {
                 Log.e(
                     "BluetoothForegroundService",
@@ -325,8 +334,10 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
             }
             Log.d("BluetoothForegroundService", "Chunk sent: ${chunk.contentToString()}")
 
+
+
             // BLE 장치에 따라 약간의 지연이 필요할 수 있음
-            Thread.sleep(200) // 지연 시간을 적절히 조정
+            Thread.sleep(200)// 지연 시간을 적절히 조정
         }
     }
 
@@ -411,16 +422,16 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         Log.d("BatteryInfo", "현재 배터리 ID: ${batteryInfo["battery_id"]}")
         Log.d("BatteryInfo", "전체 배터리 정보: $batteryInfo")
 
-        synchronized(collectedData) {
-            collectedData.add(data)
-            hwToAppProtocol.analyzeData(collectedData)
-
-        }
-        CoroutineScope(Dispatchers.IO).launch {
-//            Log.d(TAG, "서버 전송 시작")
-
-//            sendDataToServer()
-        }
+//        synchronized(collectedData) {
+//            collectedData.add(data)
+//            hwToAppProtocol.analyzeData(collectedData)
+//
+//        }
+//        CoroutineScope(Dispatchers.IO).launch {
+////            Log.d(TAG, "서버 전송 시작")
+//
+////            sendDataToServer()
+//        }
         /** 서버송신 **/
 
     }
@@ -447,6 +458,8 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
             val batteryId = PreferencesHelper.getInstance(this).getString("battery_id")
 
             if (!batteryId.isNullOrBlank()) {
+                //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ중요ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+                //지금 여기서 들어오는 Ble데이터  받고 아래에서 변환함! ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
                 val serverData = bleManager.getServerData()
 
                 if (serverData.isNotEmpty()) {
@@ -454,6 +467,8 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
                     Log.d(TAG, "배터리 ID: $batteryId")
                     Log.d(TAG, "전송할 데이터 크기: ${serverData.size}")
                     Log.d(TAG, "전송할 데이터 샘플(처음 10개): ${serverData.take(10)}")
+
+                    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ여기가 변환하는 핵심 작업임!!!!ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
                     val intData = serverData.map { hexStr ->
                         hexStr.toInt(16)
                     }
@@ -484,6 +499,10 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
                         }.onFailure { error ->
                             Log.e(TAG, "데이터 전송 실패: ${error.message}")
                             Log.e(TAG, "Stack trace: ${error.stackTraceToString()}")
+                            bleManager.resetServerData()
+                            bleManager.resetOriginalDataList()
+                            bleManager.resetAllData()
+
                         }
                     }
 

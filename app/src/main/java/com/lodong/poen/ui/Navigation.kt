@@ -46,6 +46,7 @@ fun Navigation(
     val findPasswordViewModelFactory = FindPasswordViewModelFactory(signUpRepository.getSignUpApis())
 
     val preferencesHelper = PreferencesHelper.getInstance(context)
+
     val bluetoothViewModel = remember {
         BluetoothViewModel.getInstance(
             service = bluetoothService,
@@ -98,16 +99,20 @@ fun Navigation(
             )
         }
         composable(
-            route = "find_id_result/{identifier}/{regDate}",  // 이 route 이름이 FindAccountPasswordScreen에서 사용하는 이름과 일치해야 함
+            route = "find_id_result/{identifier}/{regDate}/{name}/{email}",  // name과 email 추가
             arguments = listOf(
                 navArgument("identifier") { type = NavType.StringType },
-                navArgument("regDate") { type = NavType.StringType }
+                navArgument("regDate") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType },
+                navArgument("email") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             FindIdResultScreen(
                 navController = navController,
                 identifier = backStackEntry.arguments?.getString("identifier") ?: "",
-                regDate = backStackEntry.arguments?.getString("regDate") ?: ""
+                regDate = backStackEntry.arguments?.getString("regDate") ?: "",
+                name = backStackEntry.arguments?.getString("name") ?: "",
+                email = backStackEntry.arguments?.getString("email") ?: ""
             )
         }
         composable(

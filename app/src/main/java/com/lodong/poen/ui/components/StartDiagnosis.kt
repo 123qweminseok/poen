@@ -2,13 +2,16 @@ package com.lodong.poen.ui.components
 
 import BluetoothViewModel
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,7 +19,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
 fun StartDiagnosis(
@@ -24,6 +29,7 @@ fun StartDiagnosis(
     bluetoothViewModel: BluetoothViewModel,
     pairedDevice: BluetoothViewModel.DeviceWithStatus
 ) {
+    //프로그레스바 관리.
     val progress = bluetoothViewModel.diagnosisProgress.collectAsState().value //BluetoothViewModel의 diagnosisProgress StateFlow를 가져온거임. 이 클래스에서 해주고 있기 때문에
     val diagnosisMessage = remember { mutableStateOf("진단 중입니다") }
     val dots = remember { mutableStateOf("") }
@@ -32,22 +38,32 @@ fun StartDiagnosis(
 
 
 
+
+
+
+
     // BLE 데이터 리스너 설정 이 부분이 이제 화면에 나오는거지 ㅇㅇ
+    // BLE 데이터 리스너 설정 (실제 데이터 수신용)
     LaunchedEffect(Unit) {
         bluetoothViewModel.setBLEDataListener { data ->
             val hexString = data.joinToString(" ") { "%02X".format(it) }
             val dataCount = bluetoothViewModel.getOriginalDataListSize()
-            logs.value = logs.value + listOf(
-                "[${System.currentTimeMillis()}] 원본 데이터(${dataCount}번째): $hexString",
-                "[${System.currentTimeMillis()}] 누적된 원본 데이터 개수: $dataCount"
-            )
+            logs.value = logs.value + "[${System.currentTimeMillis()}] 원본 데이터(${dataCount}번째): $hexString"
         }
     }
 
-    // 기존 로그 추가 함수
-    fun addLog(message: String) {
-        logs.value = logs.value + "[${System.currentTimeMillis()}] $message"
-    }
+
+    LaunchedEffect(Unit) {
+        bluetoothViewModel.setChunkListener { chunk ->
+            val chunkHexString = chunk.joinToString(" ") { "%02X".format(it) }
+            logs.value = logs.value + "[${System.currentTimeMillis()}] Chunk sent: $chunkHexString"  //장치로 전송으로 바꿔야 함. 실제 출품시 장치 전송.. 원본 데이터는 수신 데이터
+        }
+}
+
+        // 기존 로그 추가 함수
+//    fun addLog(message: String) {
+//        logs.value = logs.value + "[${System.currentTimeMillis()}] $message"
+//    }
 
 
     // 애니메이션 효과: 점(...)을 순환적으로 추가
@@ -64,46 +80,44 @@ fun StartDiagnosis(
     LaunchedEffect(Unit) {
         delay(500)
         shouldStartDiagnosis.value = true
-        addLog("진단 시작 준비 완료")
     }
 
     //진단 상태에 따른 동작     // GATT 연결 및 데이터 전송 처리
     LaunchedEffect(shouldStartDiagnosis.value) {
         if (shouldStartDiagnosis.value) {
-            val gatt = pairedDevice.gatt
-            if (gatt != null) {
-                try {
-                    addLog("GATT 연결 확인됨")
-                    val serviceUUID = bluetoothViewModel.serviceUUID
-                    val characteristicUUID = bluetoothViewModel.characteristicUUID
+            withContext(Dispatchers.IO) {  // IO 스레드에서 실행
 
-                    addLog("데이터 전송 시작")
-                    bluetoothViewModel.sendDataToDevice(
-                        gatt = gatt,
-                        serviceUUID = serviceUUID,
-                        characteristicUUID = characteristicUUID,
-                        data = "StartDiagnosis".toByteArray(Charsets.UTF_8)
-                    )
+                val gatt = pairedDevice.gatt
+                if (gatt != null) {
+                    try {
+                        val serviceUUID = bluetoothViewModel.serviceUUID
+                        val characteristicUUID = bluetoothViewModel.characteristicUUID
+
+                        bluetoothViewModel.sendDataToDevice(
+                            gatt = gatt,
+                            serviceUUID = serviceUUID,
+                            characteristicUUID = characteristicUUID,
+                            data = "StartDiagnosis".toByteArray(Charsets.UTF_8)
+                        )
 //                    addLog("데이터 전송 완료")
 
-                    when {
-                        progress < 1.0f -> {
-                            diagnosisMessage.value = "진단 중입니다... (${(progress * 100).toInt()}%)"
+                        when {
+                            progress < 1.0f -> {
+                                diagnosisMessage.value = "진단 중입니다... (${(progress * 100).toInt()}%)"
 //                            addLog("진행률: ${(progress * 100).toInt()}%")
+                            }
+                            progress >= 1.0f -> {
+                                diagnosisMessage.value = "진단이 완료되었습니다."
+                            }
                         }
-                        progress >= 1.0f -> {
-                            diagnosisMessage.value = "진단이 완료되었습니다."
-                        }
+                    } catch (e: Exception) {
+                        diagnosisMessage.value = "진단 중 오류가 발생했습니다: ${e.message}"
                     }
-                } catch (e: Exception) {
-                    diagnosisMessage.value = "진단 중 오류가 발생했습니다: ${e.message}"
-                    addLog("오류 발생: ${e.message}")
+                } else {
+                    diagnosisMessage.value = "GATT 연결이 없습니다."
                 }
-            } else {
-                diagnosisMessage.value = "GATT 연결이 없습니다."
-                addLog("GATT 연결 없음")
-            }
-        }
+            }            }
+
     }
 
 
@@ -117,6 +131,11 @@ fun StartDiagnosis(
             dots.value = ""
         }
     }
+
+
+
+
+
 
     //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ화면 나누는 부분 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
     Column(
@@ -199,5 +218,7 @@ fun StartDiagnosis(
         }
 
 //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ여기까지 이제 로그 띄우는부분임ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
     }
 }

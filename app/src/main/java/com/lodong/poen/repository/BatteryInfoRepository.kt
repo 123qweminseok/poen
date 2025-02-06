@@ -21,6 +21,11 @@ class BatteryInfoRepository(private val preferencesHelper: PreferencesHelper) {
     private val apiService: BatteryInfoApis
 
 
+
+
+
+
+
     init {
         apiService = RetrofitClient.getInstance(
             baseUrl = "https://beri-link.co.kr",

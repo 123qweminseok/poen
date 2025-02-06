@@ -38,10 +38,8 @@ interface SignUpApis {
     @POST("/api/auth/login")
     suspend fun login(@Body request: LoginRequest): Response<ApiResponse<LoginDto>>
 
-    // 아이디 이메일로 전송
     @POST("/api/auth/identifier/send")
-    suspend fun sendIdWithEmail(): Response<ApiResponse<Unit>>
-
+    suspend fun sendIdWithEmail(@Body request: Map<String, String>): Response<ApiResponse<Unit>>
     // 아이디 찾기
     @POST("/api/auth/identifier/find")
     suspend fun findIdentifier(@Body request: Map<String, String>): Response<ApiResponse<IdentifierResponse>>
@@ -69,10 +67,23 @@ interface SignUpApis {
         @Body request: BusinessValidationRequest
     ): Response<ApiResponse<Any>>
 
+    @POST("/api/member/qna/questions")
+    suspend fun submitInquiry(@Body request: InquiryRequest): Response<ApiResponse<Unit>>
 
 
 }
 
+data class InquiryRequest(
+    val title: String,
+    val content: String
+)
+
+
+data class TokenResponse(
+    val accessToken: String,
+    val refreshToken: String,
+    val loginType: String
+)
 data class BusinessValidationRequest(
     val businessNumber: String,
     val businessRepresentativeName: String,

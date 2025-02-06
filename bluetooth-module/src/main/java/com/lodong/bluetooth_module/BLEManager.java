@@ -216,38 +216,38 @@ public class BLEManager {
                 }
             }
 
-//중요0// 1. BLEManager에서 데이터 최초 수신
+            //중요0// 1. BLEManager에서 데이터 최초 수신
             // TODO 이파트
 // BLEManager.java의 onCharacteristicChanged 메서드 수정
             //BLE장치에서 앱으로 데이터 수신하는 부분임. BLE 장치에서 데이터를 처음 수신하는 핵심적인 부분!!
-@Override
-public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-    byte[] data = characteristic.getValue();
+            @Override
+            public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                byte[] data = characteristic.getValue();
 
 
 
-    // 기존 originalDataList 처리 유지
-    originalDataList.add(data);
-    StringBuilder hexString = new StringBuilder();
-    for (byte b : data) {
-        hexString.append(String.format("%02X ", b));
-    }
-    Log.d(TAG, "원본 데이터(" + originalDataList.size() + "번째): " + hexString.toString());
-    Log.d(TAG, "누적된 원본 데이터 개수: " + originalDataList.size());
+                // 기존 originalDataList 처리 유지
+                originalDataList.add(data);
+                StringBuilder hexString = new StringBuilder();
+                for (byte b : data) {
+                    hexString.append(String.format("%02X ", b));
+                }
+                Log.d(TAG, "원본 데이터(" + originalDataList.size() + "번째): " + hexString.toString());
+                Log.d(TAG, "누적된 원본 데이터 개수: " + originalDataList.size());
 
-    // 데이터 파싱 및 처리
-    processPacketData(data);
+                // 데이터 파싱 및 처리
+                processPacketData(data);
 
-    // 기존 리스너 콜백 유지
-    if (bleDataListener != null) {
-        bleDataListener.onDataReceived(data);
-    }
+                // 기존 리스너 콜백 유지
+                if (bleDataListener != null) {
+                    bleDataListener.onDataReceived(data);
+                }
 
-    if (bluetoothCallback != null) {
-        bluetoothCallback.onDataReceived(data);
-        bluetoothCallback.onDataReadyForTransfer();
-    }
-}
+                if (bluetoothCallback != null) {
+                    bluetoothCallback.onDataReceived(data);
+                    bluetoothCallback.onDataReadyForTransfer();
+                }
+            }
 
             private void processPacketData(byte[] data) {
                 int index = 0;
@@ -293,20 +293,20 @@ public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteris
                     } else {
                         index++;
                     }
-            } }
+                } }
         });
     }
 
 
-//서버로 보내는 데이터 17바이트씩 자르기 모음
+    //서버로 보내는 데이터 17바이트씩 자르기 모음
     // 유틸리티 메서드 추가
-private String bytesToHexString(byte[] bytes) {
-    StringBuilder sb = new StringBuilder();
-    for (byte b : bytes) {
-        sb.append(String.format("%02X ", b));
+    private String bytesToHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02X ", b));
+        }
+        return sb.toString();
     }
-    return sb.toString();
-}
 
 
     private boolean isSensorDataHeader(byte[] data) {
@@ -409,7 +409,7 @@ private String bytesToHexString(byte[] bytes) {
         synchronized(serverDataList) {
             Log.d(TAG, "========== 서버 전송 데이터 목록 ==========");
             Log.d(TAG, "전체 데이터 크기: " + serverDataList.size());
-            Log.d(TAG, "데이터: " + String.join(" ", serverDataList));
+            Log.d(TAG, "데이터: " + serverDataList);
             Log.d(TAG, "=========================================");
         }
     }

@@ -12,6 +12,8 @@ import com.lodong.utils.ApiResponse
 import com.lodong.utils.ApiResponseResult
 import com.lodong.poen.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import retrofit2.Response
 
@@ -19,6 +21,9 @@ class BinaryBleRepository(private val context: Context) {
     private val preferencesHelper: PreferencesHelper by lazy {
         PreferencesHelper.getInstance(context)
     }
+
+
+
 
     private var bluetoothService: BluetoothForegroundService? = null
     private var hwToAppProtocol: HwToAppProtocol? = null
@@ -57,9 +62,9 @@ class BinaryBleRepository(private val context: Context) {
                         .toByteArray()
 
                     // hwToAppProtocol이 null이 아닐 때만 패킷 처리
-                    hwToAppProtocol?.let {
-                        it.analyzeData(mutableListOf(bytes))
-                    }
+//                    hwToAppProtocol?.let {
+//                        it.analyzeData(mutableListOf(bytes))
+//                    }
 
                     ApiResponseResult.Success(apiResponse.data)
                 } else {
@@ -74,7 +79,21 @@ class BinaryBleRepository(private val context: Context) {
         }
     }
 
-// 실제로 데이터 날리는 부분 서버로.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+
+
+// BluetoothForeground서비스로 데이터 전송하는 부분 배터리 아이디 등등.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
+
+
+
+
 
     suspend fun sendCollectedData(batteryId: String, dataToSend: List<SensorDataDto>): Result<Boolean> {
         return withContext(Dispatchers.IO) {
@@ -95,6 +114,7 @@ class BinaryBleRepository(private val context: Context) {
                         val errorBody = response.errorBody()?.string()
                         Log.e(TAG, "Error response code: ${response.code()}")
                         Log.e(TAG, "Error body: $errorBody")
+
                         Result.failure(Exception("API call failed: ${response.code()} - $errorBody"))
                     }
                 } else {
