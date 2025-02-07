@@ -45,8 +45,12 @@ public class BLEManager {
     private static final int END_SIZE = 3;
     private static final int SENSOR_DATA_SIZE = 17;
 
+    private static final long DATA_TIMEOUT = 13500; // 15초
 
+    private Handler timeoutHandler = new Handler(Looper.getMainLooper());
+    private Runnable timeoutRunnable;
 
+    private long lastDataReceivedTime = 0;
 
 
 
@@ -55,6 +59,7 @@ public class BLEManager {
     public BLEManager(Context context) {
         this.context = context.getApplicationContext();
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        initTimeoutCheck(); // 타임아웃 체크 초기화
 
         if (this.bluetoothAdapter == null) {
             throw new IllegalStateException("BluetoothAdapter is not available.");
@@ -81,11 +86,14 @@ public class BLEManager {
     public void startScan(DeviceFoundCallback callback) {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
             Log.e(TAG, "Bluetooth is not enabled.");
+            lastDataReceivedTime = System.currentTimeMillis(); // 초기 시간 설정
+            timeoutHandler.postDelayed(timeoutRunnable, 1000);
             return;
         }
 
         if (scanCallback != null) {
             stopScan();
+
         }
 //스캔하는 부분임
 
@@ -147,6 +155,8 @@ public class BLEManager {
             } finally {
                 scanCallback = null;
                 discoveredDevices.clear();
+                timeoutHandler.removeCallbacks(timeoutRunnable);  // 여기에 추가
+
             }
         }
     }
@@ -167,9 +177,18 @@ public class BLEManager {
                     Log.d(TAG, gatt.toString());
                     callback.onConnectedGatt(gatt);
 
+                    // 연결 성공 시 타임아웃 체크 시작
+                    lastDataReceivedTime = System.currentTimeMillis();
+                    timeoutHandler.postDelayed(timeoutRunnable, 1000);
+                    Log.d(TAG, "타임아웃 체크 시작됨");
+
+
+
                     new Handler(Looper.getMainLooper()).postDelayed(() -> gatt.discoverServices(), 2000);
                 } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                     Log.d(TAG, "Device disconnected.");
+                    timeoutHandler.removeCallbacks(timeoutRunnable);  // 타임아웃 체크 중지
+                    Log.d(TAG, "타임아웃 체크 중지됨");
                     callback.onDisconnected();
                     currentGatt = null;
                 } else {
@@ -223,6 +242,7 @@ public class BLEManager {
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                 byte[] data = characteristic.getValue();
+                lastDataReceivedTime = System.currentTimeMillis(); // 데이터 수신 시간 업데이트
 
 
 
@@ -462,6 +482,31 @@ public class BLEManager {
         originalDataList.clear();
     }
 
+    private void initTimeoutCheck() {
+        timeoutRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long currentTime = System.currentTimeMillis();
+                long timeSinceLastData = currentTime - lastDataReceivedTime;
+                Log.d(TAG, "타임아웃 체크 중: 마지막 데이터로부터 " + timeSinceLastData + "ms 경과");
+
+                if (timeSinceLastData > DATA_TIMEOUT) {
+                    Log.w(TAG, "타임아웃 발생: " + DATA_TIMEOUT + "ms 동안 데이터 없음");
+                    Log.d(TAG, "초기화 전 원본 데이터 크기: " + originalDataList.size());
+                    Log.d(TAG, "초기화 전 서버 데이터 크기: " + serverDataList.size());
+                    originalDataList.clear();  // serverDataList 대신 originalDataList 초기화
+                    synchronized(serverDataList) {
+                        serverDataList.clear(); // 서버 데이터 초기화
+                    }
+
+                    Log.d(TAG, "원본 데이터,서버 전송용 데이터  초기화 완료. 현재 크기: " + originalDataList.size());
+
+                }
+                timeoutHandler.postDelayed(this, 5000);  // 1초마다 체크
+            }
+        };
+        Log.d(TAG, "타임아웃 체크 초기화됨 (타임아웃: " + DATA_TIMEOUT + "ms)");
+    }
 
 
 }

@@ -3,6 +3,7 @@ package com.lodong.poen.ui.components
 import BluetoothViewModel
 import android.content.Context
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,9 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lodong.poen.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -38,6 +41,80 @@ fun StartDiagnosis(
 
 
 
+
+
+    // 타임아웃 관련 상태 추가
+    var showTimeoutDialog by remember { mutableStateOf(false) }
+    var lastProgressTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+
+
+
+    LaunchedEffect(progress) {
+        if (progress > 0f && progress < 0.9f) {  // 90% 미만일 때만 체크
+            lastProgressTime = System.currentTimeMillis()
+
+            while (progress < 0.9f && !showTimeoutDialog) {  // 90% 미만일 때만 체크
+                delay(1000) // 1초마다 체크
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastProgressTime > 3000) { // 3초 타임아웃
+                    showTimeoutDialog = true
+                    break
+                }
+            }
+        }
+    }
+
+
+
+    // ====== [세련된 타임아웃 다이얼로그] ======
+    if (showTimeoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showTimeoutDialog = false },
+            // 다이얼로그 배경을 하얀색으로 지정
+            containerColor = Color.White,
+            // 다이얼로그 모서리 둥글림
+            shape = MaterialTheme.shapes.medium,
+            // 그림자(음영) 효과
+            tonalElevation = 12.dp,
+
+            title = {
+                // 타이틀에 이미지 + 텍스트 조합
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // logo.png를 drawable에 넣었다고 가정
+                    val logoPainter = painterResource(id = R.drawable.logo)
+                    // 이미지 크기와 여백 조정
+                    Image(
+                        painter = logoPainter,
+                        contentDescription = "로고 이미지",
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "알림",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "장치를 리셋해주세요\n(앱 재시작 및 연결 확인)",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.DarkGray
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showTimeoutDialog = false }) {
+                    Text("확인")
+                }
+            }
+        )
+    }
 
 
 
@@ -78,7 +155,7 @@ fun StartDiagnosis(
 
     // 진단 준비 완료 후 진단 시작 플래그 설정
     LaunchedEffect(Unit) {
-        delay(500)
+        delay(1000)
         bluetoothViewModel.startDiagnosis()  // 추가
 
         shouldStartDiagnosis.value = true

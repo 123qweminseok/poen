@@ -46,8 +46,7 @@ interface SignUpApis {
 
     // 아이디 중복 확인
     @POST("/api/auth/identifier/check")
-    suspend fun checkIdentifier(): Response<ApiResponse<Unit>>
-
+    suspend fun checkIdentifier(@Body request: Map<String, String>): Response<ApiResponse<Unit>>
     // 구매자 회원가입
     @POST("/api/auth/buyer/signup")
     suspend fun buyerSignup(@Body request: BuyerSignupRequest): Response<ApiResponse<Unit>>

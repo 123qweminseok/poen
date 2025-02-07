@@ -31,12 +31,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -73,7 +76,10 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.lodong.poen.ui.navigation.Routes
 import com.lodong.utils.KeyboardAwareLayout
 
 private enum class BatteryInfoInputStage {
@@ -81,7 +87,8 @@ private enum class BatteryInfoInputStage {
 }
 
 @Composable
-fun BatteryInfoInputScenario(onExitScenario: () -> Unit) {
+fun BatteryInfoInputScenario(onExitScenario: () -> Unit,    navController: NavController  // NavController 파라미터 추가
+) {
     val currentStage = remember { mutableStateOf(BatteryInfoInputStage.BASIC_INFO) }
     val onPopupDismiss = remember { mutableStateOf<() -> Unit>({}) }
 
@@ -138,7 +145,9 @@ fun BatteryInfoInputScenario(onExitScenario: () -> Unit) {
                     showPopup("사진 업로드가 완료되었습니다.") {
                         onExitScenario()
                     }
-                }
+                },
+                navController = navController  // navController 전달
+
             )
         }
 
@@ -527,13 +536,76 @@ fun BatteryInfoInput1(
 @Composable
 fun BatteryInfoInput2(
     onBackButtonPressed: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    navController: NavController  // NavController 추가
+
 ) {
     val viewModel: BatteryInfoViewModel = viewModel()
     val context = LocalContext.current
     val batteryId = viewModel.batteryId.collectAsState().value ?: ""
 
     val imageUris = remember { mutableStateListOf<Uri>() } // 선택한 이미지 URI 리스트
+    var showDialog by remember { mutableStateOf(false) }
+
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            containerColor = Color.White,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 12.dp,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val logoPainter = painterResource(id = R.drawable.logo)
+                    Image(
+                        painter = logoPainter,
+                        contentDescription = "로고 이미지",
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "알림",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "다시 들어가주세요",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.DarkGray
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDialog = false
+                        // MainScreen으로 이동하며 스택 정리
+                        navController.navigate(Routes.MainScreen.route) {
+                            popUpTo(Routes.BatteryInfoScreen.route) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 
     // 갤러리에서 이미지 선택
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -606,20 +678,25 @@ fun BatteryInfoInput2(
             Spacer(modifier = Modifier.size(32.dp))
 
             // 저장 버튼
+            // 저장 버튼
             Button(
                 colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
                 onClick = {
-                    viewModel.uploadMultipleImages(
-                        context = context,
-                        imageUris = imageUris,
-                        onSuccess = {
-                            Log.d("ImageUpload", "Images uploaded successfully!")
-                            onSave()
-                        },
-                        onError = { error ->
-                            Log.e("ImageUpload", "Error: $error")
-                        }
-                    )
+                    if (batteryId == null) {
+                        showDialog = true  // 다이얼로그 표시
+                    } else {
+                        viewModel.uploadMultipleImages(
+                            context = context,
+                            imageUris = imageUris,
+                            onSuccess = {
+                                Log.d("ImageUpload", "Images uploaded successfully!")
+                                onSave()
+                            },
+                            onError = { error ->
+                                Log.e("ImageUpload", "Error: $error")
+                            }
+                        )
+                    }
                 },
                 shape = RoundedCornerShape(8.dp)
             ) {

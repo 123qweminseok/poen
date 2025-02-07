@@ -19,7 +19,6 @@ import com.lodong.poen.repository.SignUpRepository
 import com.lodong.poen.service.BluetoothForegroundService
 import com.lodong.poen.ui.navigation.Navigation
 import com.lodong.poen.ui.screens.LoadingScreen
-import com.lodong.poen.viewmodel.ApplicationContextProvider
 
 
 class MainActivity : ComponentActivity() {
@@ -51,7 +50,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val preferencesHelper = PreferencesHelper.getInstance(this)
         val batteryInfoRepository = BatteryInfoRepository(preferencesHelper)
-        ApplicationContextProvider.context = applicationContext
 
         binaryBleRepository = BinaryBleRepository(this)
         signUpRepository = SignUpRepository(preferencesHelper) // preferencesHelper 전달

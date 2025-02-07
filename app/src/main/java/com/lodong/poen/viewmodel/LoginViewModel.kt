@@ -69,8 +69,37 @@ class LoginViewModel(
         }
     }
 
+    fun checkIdentifierDuplicate(
+        identifier: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                println("중복확인 시작 - 아이디: $identifier")
+                // identifier를 Map으로 전달
+                val response = signUpRepository.apiService.checkIdentifier(mapOf("identifier" to identifier))
+                println("API 응답: ${response.body()}")
 
-
+                if (response.isSuccessful) {
+                    println("API 호출 성공")
+                    if (response.body()?.status == 200) {
+                        println("중복확인 성공")
+                        onSuccess()
+                    } else {
+                        println("API 응답 에러: ${response.body()?.resultMsg}")
+                        onError(response.body()?.resultMsg ?: "중복된 아이디입니다")
+                    }
+                } else {
+                    println("API 호출 실패: ${response.errorBody()?.string()}")
+                    onError("중복된 아이디입니다")
+                }
+            } catch (e: Exception) {
+                println("예외 발생: ${e.message}")
+                onError("아이디 중복 확인 중 오류가 발생했습니다: ${e.message}")
+            }
+        }
+    }
 
 
 

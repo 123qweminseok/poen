@@ -1,60 +1,127 @@
 package com.lodong.poen.viewmodel
-
+import retrofit2.http.Query
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.lodong.apis.InquiryRequest
-import com.lodong.apis.SignUpApis
+import androidx.lifecycle.viewModelScope
+import com.lodong.apis.MemberApi
+import com.lodong.apis.MemberApi.InquiryRequest
+import com.lodong.apis.MemberApi.InquiryResponse
+import com.lodong.apis.ServiceLocator
+import com.lodong.apis.ServiceLocator.memberApi
 import com.lodong.poen.network.BASE_URL
 import com.lodong.poen.network.RetrofitClient
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class InquiryViewModel(
-    private val signUpApis: SignUpApis
+    private val memberApi: MemberApi
 ) : ViewModel() {
 
-    suspend fun submitInquiry(title: String, content: String) {
-        try {
-            Log.d("InquiryViewModel", "문의 등록 시도")
-            Log.d("InquiryViewModel", "Request - 제목: $title, 내용: $content")
-
-            val request = InquiryRequest(title, content)
-            val response = signUpApis.submitInquiry(request)
-
-            Log.d("InquiryViewModel", "API URL: /api/member/qna/questions")
-            Log.d("InquiryViewModel", "응답 코드: ${response.code()}")
-            Log.d("InquiryViewModel", "전체 응답: ${response.raw()}")
-            Log.d("InquiryViewModel", "응답 헤더: ${response.headers()}")
-            Log.d("InquiryViewModel", "응답 바디: ${response.body()}")
-
-            if (response.isSuccessful) {
-                Log.d("InquiryViewModel", "문의 등록 성공")
-            } else {
-                val errorBody = response.errorBody()?.string()
-                Log.e("InquiryViewModel", "문의 등록 실패")
-                Log.e("InquiryViewModel", "에러 응답: $errorBody")
-                Log.e("InquiryViewModel", "에러 코드: ${response.code()}")
-                throw Exception("문의 등록 실패 (${response.code()}): $errorBody")
-            }
-        } catch (e: Exception) {
-            Log.e("InquiryViewModel", "네트워크 에러", e)
-            Log.e("InquiryViewModel", "스택 트레이스: ${e.stackTraceToString()}")
-            throw e
+    class InquiryViewModelFactory(
+        private val context: Context
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            val preferencesHelper = PreferencesHelper.getInstance(context)
+            val memberApi = RetrofitClient.getInstance(BASE_URL, preferencesHelper)
+                .getApiService(MemberApi::class.java)
+            return InquiryViewModel(memberApi) as T
         }
     }
-    companion object {
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                val preferencesHelper = PreferencesHelper.getInstance(ApplicationContextProvider.context)
-                val retrofit = RetrofitClient.getInstance(BASE_URL, preferencesHelper)
-                val signUpApis = retrofit.getApiService(SignUpApis::class.java)
-                return InquiryViewModel(signUpApis) as T
+
+
+    private val _inquiries = MutableStateFlow<List<InquiryResponse>>(emptyList())
+    val inquiries: StateFlow<List<InquiryResponse>> = _inquiries.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    init {
+        Log.d("InquiryViewModel", "ViewModel 초기화 - loadInquiries 호출")
+
+        loadInquiries()
+    }
+
+
+
+
+    fun createInquiry(title: String, content: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                Log.d("InquiryViewModel", "문의 작성 시작 - 제목: $title, 내용: $content")
+
+                val request = InquiryRequest(title, content)
+                Log.d("InquiryViewModel", "요청 데이터: $request")
+
+                val response = memberApi.createInquiry(request)
+                Log.d("InquiryViewModel", "서버 응답 코드: ${response.code()}")
+                Log.d("InquiryViewModel", "서버 응답 바디: ${response.body()}")
+
+                if (response.isSuccessful) {
+                    Log.d("InquiryViewModel", "문의 작성 성공")
+                    onSuccess()
+                    loadInquiries()
+                } else {
+                    Log.e("InquiryViewModel", "문의 작성 실패 - HTTP ${response.code()}")
+                    Log.e("InquiryViewModel", "에러 메시지: ${response.errorBody()?.string()}")
+                    _error.value = "문의 작성에 실패했습니다. (${response.code()})"
+                }
+            } catch (e: Exception) {
+                Log.e("InquiryViewModel", "문의 작성 중 예외 발생", e)
+                Log.e("InquiryViewModel", "상세 에러: ${e.stackTraceToString()}")
+                _error.value = "문의 작성 중 오류가 발생했습니다: ${e.message}"
+            } finally {
+                _isLoading.value = false
             }
         }
     }
-}
 
-object ApplicationContextProvider {
-    lateinit var context: Context
+    fun loadInquiries(page: Int = 0, size: Int = 10) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                Log.d("InquiryViewModel", "문의 목록 로딩 시작")
+                val response = memberApi.getInquiries(page = page, size = size)
+                Log.d("InquiryViewModel", "문의 목록 응답 코드: ${response.code()}")
+                Log.d("InquiryViewModel", "문의 목록 원본 응답: ${response.body()}")
+
+                if (response.isSuccessful) {
+                    val responseBody = response.body()
+                    Log.d("InquiryViewModel", "응답 데이터 구조: $responseBody")
+
+                    // InquiriesResponse의 data 필드에서 content를 가져옴
+                    val content = responseBody?.data?.content
+                    Log.d("InquiryViewModel", "파싱된 문의 목록: $content")
+
+                    if (content != null) {
+                        _inquiries.value = content
+                        Log.d("InquiryViewModel", "문의 목록 로딩 성공 - ${content.size}개 항목")
+                    } else {
+                        Log.e("InquiryViewModel", "문의 목록이 null입니다")
+                        _error.value = "문의내역을 불러올 수 없습니다."
+                    }
+                } else {
+                    Log.e("InquiryViewModel", "문의 목록 로딩 실패 - HTTP ${response.code()}")
+                    val errorBody = response.errorBody()?.string()
+                    Log.e("InquiryViewModel", "에러 응답: $errorBody")
+                    _error.value = "문의내역을 불러오는데 실패했습니다."
+                }
+            } catch (e: Exception) {
+                Log.e("InquiryViewModel", "문의 목록 로딩 중 예외 발생", e)
+                Log.e("InquiryViewModel", "상세 에러: ${e.stackTraceToString()}")
+                _error.value = "문의 목록을 불러오는 중 오류가 발생했습니다: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
 }

@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -127,22 +131,17 @@ fun InquiryForm(
     content: String,
     onContentChange: (String) -> Unit,
     onSave: () -> Unit,
-    viewModel: InquiryViewModel = viewModel(factory = InquiryViewModel.Factory)
+    viewModel: InquiryViewModel = viewModel(
+        factory = InquiryViewModel.InquiryViewModelFactory(LocalContext.current)
+    )
 ){
-
-    val scope = rememberCoroutineScope()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     Column(
-        modifier = Modifier.padding(horizontal = 32.dp), horizontalAlignment = Alignment.Start
+        modifier = Modifier.padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.Start
     ) {
-        SelectorField(
-            label = { FieldLabel(text = "문의 유형", required = true) },
-            selections = listOf("유형을 선택해주세요"),
-            selected = ""
-        ) {
-
-        }
-        Spacer(modifier = Modifier.size(32.dp))
         FieldLabel(text = "제목", required = true)
         TextField(
             value = title,
@@ -160,7 +159,9 @@ fun InquiryForm(
                 .border(1.dp, Color.LightGray, shape = RoundedCornerShape(8.dp))
                 .fillMaxWidth()
         )
+
         Spacer(modifier = Modifier.size(32.dp))
+
         FieldLabel(text = "내용", required = true)
         TextField(
             value = content,
@@ -181,26 +182,76 @@ fun InquiryForm(
                 .height(200.dp)
         )
 
+        error?.let { errorMsg ->
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(
+                text = errorMsg,
+                color = Color.Red,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.size(32.dp))
 
         Button(
-            onClick = onSave,
+            onClick = {
+                viewModel.createInquiry(
+                    title = title,
+                    content = content,
+                    onSuccess = onSave
+                )
+            },
             colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
             shape = RoundedCornerShape(8.dp),
+            enabled = !isLoading,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Text(text = "완료", color = Color.White)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Text(text = "완료", color = Color.White)
+            }
         }
     }
 }
-
 @Composable
-fun InquiryHistory() {
+fun InquiryHistory(
+    viewModel: InquiryViewModel = viewModel(
+        factory = InquiryViewModel.InquiryViewModelFactory(LocalContext.current)
+    )
+) {
+    val inquiries by viewModel.inquiries.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
     Column(
         modifier = Modifier.padding(horizontal = 32.dp)
     ) {
-        NoticeItem("문의내역1", "2021.09.01", "문의내역")
-        NoticeItem("문의내역2", "2021.09.01", "문의내역\n문의내역")
-        NoticeItem("문의내역3", "2021.09.01", "문의내역\n문의내역\n문의내역")
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+
+        error?.let { errorMsg ->
+            Text(
+                text = errorMsg,
+                color = Color.Red,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
+        inquiries.forEach { inquiry ->
+            NoticeItem(
+                title = inquiry.title ?: "-",           // null일 경우 "-" 표시
+                date = inquiry.regdate ?: "-",          // null일 경우 "-" 표시
+                content = inquiry.content ?: "내용 없음"   // null일 경우 "내용 없음" 표시
+            )
+        }
     }
+
+
 }

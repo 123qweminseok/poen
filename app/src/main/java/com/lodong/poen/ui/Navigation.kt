@@ -139,10 +139,12 @@ fun Navigation(
         }
 
         composable(Routes.SignUpScreen.route) {
+            val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)  // 추가
             SignUpScreen(
                 api = signUpRepository.getSignUpApis(),
                 navController = navController,
-                context = LocalContext.current  // 추가
+                context = LocalContext.current,
+                loginViewModel = loginViewModel
             )
         }
         composable(Routes.SettingsScreen.route) {
@@ -183,7 +185,10 @@ fun Navigation(
             )
         }
         composable(Routes.BatteryInfoScreen.route) {
-            BatteryInfoInputScenario(onExitScenario = { navController.popBackStack() })
+            BatteryInfoInputScenario(
+                onExitScenario = { navController.popBackStack() },
+                navController = navController  // navController 전달
+            )
         }
         composable(Routes.DiagnoseScreen.route) {
             DiagnoseScreen(
@@ -211,6 +216,8 @@ fun Navigation(
             val userInfoViewModel: UserInfoViewModel = viewModel(
                 factory = UserInfoViewModelFactory(memberApi, token) // token 전달
             )
+            val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)
+
             UserInfoEditScreen(
                 isSeller = false,
                 api = memberApi,
@@ -218,7 +225,10 @@ fun Navigation(
                 navController = navController, // 전달
 
                 preferencesHelper = preferencesHelper, // 전달
-                onBackButtonPressed = { navController.popBackStack() }
+                onBackButtonPressed = { navController.popBackStack() },
+                api2 = signUpRepository.getSignUpApis(),  // SignUpApis 인스턴스 전달
+                loginViewModel = loginViewModel  // LoginViewModel 인스턴스 전달
+
             )
         }
 

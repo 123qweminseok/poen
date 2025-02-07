@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,6 +40,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.lodong.apis.MemberApi
 import com.lodong.poen.ui.CustomBrownButton
@@ -52,6 +56,11 @@ import com.lodong.poen.ui.theme.primaryLight
 import com.lodong.poen.ui.theme.primaryLighter
 import com.lodong.poen.viewmodel.UserInfoViewModel
 import kotlinx.coroutines.launch
+import com.lodong.apis.MemberApi.SellerUpdateRequest
+import com.lodong.apis.SignUpApis
+import com.lodong.poen.SeverRequestResponse.SignUpViewModel
+import com.lodong.poen.SeverRequestResponse.SignUpViewModelFactory
+import com.lodong.poen.viewmodel.LoginViewModel
 
 @Composable
 fun UserInfoEditScreen(
@@ -61,7 +70,16 @@ fun UserInfoEditScreen(
     preferencesHelper: PreferencesHelper,  // 추가
     navController: NavHostController, // navController 추가
 
-    onBackButtonPressed: () -> Unit
+    onBackButtonPressed: () -> Unit,
+
+
+    api2: SignUpApis,
+    loginViewModel: LoginViewModel,// 추가된 파라미터
+
+
+    signupViewModel: SignUpViewModel = viewModel(
+        factory = SignUpViewModelFactory(api2)
+    )
 
 
 ) {
@@ -97,14 +115,35 @@ fun UserInfoEditScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var passwordForDelete = remember { mutableStateOf("") }
     var deleteReason = remember { mutableStateOf("") }
+    var showZipDialog by remember { mutableStateOf(false) }
 
 
-//    val token = preferencesHelper.getAccessToken() ?: ""
-//    if (token.isNullOrEmpty()) {
-//        // 토큰이 없으면 로그인 화면으로 이동하거나 에러 처리
-//        navController.navigate(Routes.LoginScreen.route)
-//        return
-//    }
+    var showDialog by remember { mutableStateOf(false) }
+    var dialogMessage by remember { mutableStateOf("") }
+
+// ㅡㅡㅡㅡ판매자 정보를 위한 상태 변수들 추가
+
+    val businessNumber = remember { mutableStateOf("") }
+    val businessRepresentativeName = remember { mutableStateOf("") }
+    val businessOpenDate = remember { mutableStateOf("") }
+    val businessName = remember { mutableStateOf("") }
+    val businessZipCode = remember { mutableStateOf("") }
+    val businessDefaultAddress = remember { mutableStateOf("") }
+    val businessDetailAddress = remember { mutableStateOf("") }
+    val businessAccountBank = remember { mutableStateOf("") }
+    val businessAccountNumber = remember { mutableStateOf("") }
+
+// 은행 목록
+    val bankList = listOf(
+        "한국씨티은행", "우리은행", "전북은행", "NH농협은행", "하나은행",
+        "카카오뱅크", "KB국민은행", "IBK기업은행", "경남은행", "대구은행",
+        "부산은행", "케이뱅크", "수협은행", "신한은행", "KDB산업은행",
+        "제주은행", "광주은행", "SC제일은행"
+    )
+
+
+
+
 
 
 
@@ -282,7 +321,37 @@ fun UserInfoEditScreen(
                     onValueChange = { zipCode.value = it } // 상태를 업데이트
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                CustomBrownButton(onClick = {}, text = "검색")
+                CustomBrownButton(
+                    onClick = {
+                        println("우편번호 검색 버튼 클릭됨") // 로그 추가
+                        showZipDialog = true
+                    },
+                    text = "우편번호 검색"
+                )
+// 기존 dialog 호출 부분 수정
+                if (showZipDialog) {
+                    DaumPostcodeDialog(
+                        onAddressSelected = { addressJson ->
+                            // 다이얼로그 내부에서 선택된 주소가 JSON 형태로 넘어옴
+                            val data =
+                                kotlinx.serialization.json.Json.decodeFromString<ZipAddressData>(
+                                    addressJson
+                                )
+                            // ZipAddressData = (zonecode, address, extraAddress 등)
+
+                            // 여기서 JoinScreen의 zipCode.value를 채운다
+                            zipCode.value = data.zonecode
+                            // 다른 필드도 필요하다면 더 설정
+                            // defaultAddress.value = data.address
+
+                            // 다이얼로그 닫기
+                            showZipDialog = false
+                        },
+                        onDismissRequest = {
+                            showZipDialog = false
+                        }
+                    )
+                }
             }
 
             Row(
@@ -355,6 +424,7 @@ fun UserInfoEditScreen(
             ) {
             }
 
+            // 판매자 모드일 때 추가되는 필드들
             if (isSellerMode.value) {
                 Row(
                     modifier = Modifier
@@ -365,12 +435,34 @@ fun UserInfoEditScreen(
                     Text(
                         modifier = Modifier.width(labelSize),
                         text = "사업자 등록번호",
-                        style = labelTextStyle
+                        style = labelTextStyle,
+
                     )
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {})
+                        value = businessNumber.value,
+                        onValueChange = { businessNumber.value = it }
+                        ,hint = "ㅡ입력x"
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CustomBrownButton(
+                        onClick = {
+                            signupViewModel.validateBusiness(
+                                businessNumber = businessNumber.value,
+                                businessRepresentativeName = businessRepresentativeName.value,
+                                businessOpenDate = businessOpenDate.value,
+                                onSuccess = {
+                                    dialogMessage = "사업자 확인 완료"
+                                    showDialog = true
+                                },
+                                onError = { error ->
+                                    dialogMessage = error
+                                    showDialog = true
+                                }
+                            )
+                        },
+                        text = "      사업자 확인\n(아래 4칸 모두 입력)",
+                    )
                 }
 
                 Row(
@@ -386,25 +478,9 @@ fun UserInfoEditScreen(
                     )
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {})
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(inputHeight),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        modifier = Modifier.width(labelSize),
-                        text = "사업장명",
-                        style = labelTextStyle
+                        value = businessRepresentativeName.value,
+                        onValueChange = { businessRepresentativeName.value = it }
                     )
-                    InfoInputField(
-                        modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {})
                 }
 
                 Row(
@@ -420,10 +496,51 @@ fun UserInfoEditScreen(
                     )
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {})
+                        value = businessOpenDate.value,
+                        onValueChange = { businessOpenDate.value = it },
+                        hint = "YYYY-MM-DD"
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(inputHeight),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        modifier = Modifier.width(labelSize),
+                        text = "사업장명",
+                        style = labelTextStyle
+                    )
+                    InfoInputField(
+                        modifier = Modifier.width(inputSize),
+                        value = businessName.value,
+                        onValueChange = { businessName.value = it }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(inputHeight),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        modifier = Modifier.width(labelSize),
+                        text = "사업장 우편번호",
+                        style = labelTextStyle
+                    )
+                    InfoInputField(
+                        modifier = Modifier.width(inputSize),
+                        value = businessZipCode.value,
+                        onValueChange = { businessZipCode.value = it }
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
-                    CustomBrownButton(onClick = {}, text = "사업자 확인")
+                    CustomBrownButton(
+                        onClick = { showZipDialog = true },
+                        text = "우편번호 검색"
+                    )
                 }
 
                 Row(
@@ -439,10 +556,9 @@ fun UserInfoEditScreen(
                     )
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {})
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CustomBrownButton(onClick = {}, text = "우편번호검색")
+                        value = businessDefaultAddress.value,
+                        onValueChange = { businessDefaultAddress.value = it }
+                    )
                 }
 
                 Row(
@@ -451,15 +567,39 @@ fun UserInfoEditScreen(
                         .height(inputHeight),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Spacer(modifier = Modifier.width(labelSize))
+                    Text(
+                        modifier = Modifier.width(labelSize),
+                        text = "사업장 상세주소",
+                        style = labelTextStyle
+                    )
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {},
-                        hint = "나머지 주소를 입력해 주세요"
+                        value = businessDetailAddress.value,
+                        onValueChange = { businessDetailAddress.value = it }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    CustomBrownButton(onClick = {}, text = "확인")
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(inputHeight),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        modifier = Modifier.width(labelSize),
+                        text = "거래 은행",
+                        style = labelTextStyle
+                    )
+                    SelectorField(
+                        label = {},
+                        selections = bankList,
+                        selected = businessAccountBank.value,
+                        borderColor = primaryLighter,
+                        backgroundColor = lightSelector,
+                        modifier = Modifier.width(inputSize)
+                    ) { newSelection ->
+                        businessAccountBank.value = newSelection
+                    }
                 }
 
                 Row(
@@ -473,31 +613,14 @@ fun UserInfoEditScreen(
                         text = "계좌번호",
                         style = labelTextStyle
                     )
-                    SelectorField(
-                        label = {},
-                        selections = listOf("국민은행"),
-                        selected = "국민은행",
-                        borderColor = primaryLighter,
-                        backgroundColor = lightSelector,
-                        modifier = Modifier.width(inputSize)
-                    ) { }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(inputHeight),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.width(labelSize))
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
-                        value = "",
-                        onValueChange = {}
+                        value = businessAccountNumber.value,
+                        onValueChange = { businessAccountNumber.value = it }
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                 }
             }
+
 
             Spacer(modifier = Modifier.size(32.dp))
 
@@ -518,65 +641,61 @@ fun UserInfoEditScreen(
                 Spacer(modifier = Modifier.size(8.dp))
                 Button(
                     onClick = {
-                        Log.d("UserInfo", "버튼 클릭됨")
-
-                        if (phoneNumber.value.isEmpty() || zipCode.value.isEmpty() ||
-                            defaultAddress.value.isEmpty() || detailAddress.value.isEmpty()
-                        ) {
-                            errorMessage = "모든 필드를 입력해주세요."
-                            Log.e("UserInfo", "필드가 비어 있음 - 전화번호: ${phoneNumber.value}, 우편번호: ${zipCode.value}, 주소: ${defaultAddress.value}, 상세주소: ${detailAddress.value}")
-                            showErrorDialog = true
-                            return@Button
-                        } else {
-                            Log.d("UserInfo", "모든 필드가 정상적으로 입력됨 - 전화번호: ${phoneNumber.value}, 우편번호: ${zipCode.value}, 주소: ${defaultAddress.value}, 상세주소: ${detailAddress.value}")
-                        }
-
-
                         scope.launch {
-                            Log.d("UserInfo", "코루틴 실행 시작")
-
                             try {
-                                // API 요청 전 로그 추가
-                                Log.d(
-                                    "API Request",
-                                    "Request Body: ${
-                                        MemberApi.BuyerUpdateRequest(
-                                            phoneNumber.value,
-                                            zipCode.value,
-                                            defaultAddress.value,
-                                            detailAddress.value
-                                        )
-                                    }"
-                                )
-                                Log.d(
-                                    "API Request",
-                                    "Authorization Header: Bearer ${preferencesHelper.getAccessToken()}"
-                                )
+                                Log.d("UserInfo", "회원정보 수정 시작 - 모드: ${if (isSellerMode.value) "판매자" else "구매자"}")
 
-                                // API 호출
-                                val response = api.updateBuyerInfo(
-                                    MemberApi.BuyerUpdateRequest(
+                                val response = if (isSellerMode.value) {
+                                    // 판매자 정보 업데이트 - 13개 필드
+                                    val sellerRequest = MemberApi.SellerUpdateRequest(
+                                        phoneNumber = phoneNumber.value,
+                                        zipCode = zipCode.value,
+                                        defaultAddress = defaultAddress.value,
+                                        detailAddress = detailAddress.value,
+                                        businessNumber = businessNumber.value,
+                                        businessRepresentativeName = businessRepresentativeName.value,
+                                        businessOpenDate = businessOpenDate.value,
+                                        businessName = businessName.value,
+                                        businessZipCode = businessZipCode.value,
+                                        businessDefaultAddress = businessDefaultAddress.value,
+                                        businessDetailAddress = businessDetailAddress.value,
+                                        businessAccountBank = businessAccountBank.value,
+                                        businessAccountNumber = businessAccountNumber.value
+                                    )
+                                    Log.d("UserInfo", "판매자 요청 데이터: $sellerRequest")
+                                    api.updateSellerInfo(sellerRequest)
+                                } else {
+                                    // 기존 구매자 정보 업데이트 코드는 그대로 유지
+                                    val buyerRequest = MemberApi.BuyerUpdateRequest(
                                         phoneNumber = phoneNumber.value,
                                         zipCode = zipCode.value,
                                         defaultAddress = defaultAddress.value,
                                         detailAddress = detailAddress.value
                                     )
-                                )
+                                    Log.d("UserInfo", "구매자 요청 데이터: $buyerRequest")
+                                    api.updateBuyerInfo(buyerRequest)
+                                }
 
-                                // API 응답 로그 추가
+                                Log.d("UserInfo", "API 응답 코드: ${response.code()}")
+                                Log.d("UserInfo", "API 응답 헤더: ${response.headers()}")
+
                                 if (response.isSuccessful) {
-                                    Log.d("API Response", "Status Code: ${response.code()}")
-                                    Log.d("API Response", "Response Body: ${response.body()}")
+                                    Log.d("UserInfo", "API 호출 성공")
+                                    Log.d("UserInfo", "응답 데이터: ${response.body()}")
                                     showSuccessDialog = true
                                 } else {
-                                    errorMessage = "회원정보 수정에 실패했습니다. (상태 코드: ${response.code()})"
-                                    Log.e("API Response", "Status Code: ${response.code()}")
-                                    Log.e("API Response", "Error Body: ${response.errorBody()?.string()}")
+                                    Log.e("UserInfo", "API 호출 실패 - 상태 코드: ${response.code()}")
+                                    val errorBody = response.errorBody()?.string()
+                                    Log.e("UserInfo", "에러 응답 body: $errorBody")
+                                    Log.e("UserInfo", "에러 응답 헤더: ${response.headers()}")
+                                    errorMessage = "회원정보 수정에 실패했습니다. (${response.code()})"
                                     showErrorDialog = true
                                 }
                             } catch (e: Exception) {
+                                Log.e("UserInfo", "예외 발생", e)
+                                Log.e("UserInfo", "예외 메시지: ${e.message}")
+                                Log.e("UserInfo", "예외 스택트레이스:", e)
                                 errorMessage = "오류가 발생했습니다: ${e.message}"
-                                Log.e("UserInfo", "코루틴 내부 예외 발생", e)
                                 showErrorDialog = true
                             }
 
@@ -604,5 +723,59 @@ fun UserInfoEditScreen(
             )
         }
     }
+
+    BusinessValidationDialog(
+        show = showDialog,
+        message = dialogMessage,
+        onDismiss = { showDialog = false }
+    )
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            title = { Text("성공") },
+            text = { Text("회원정보 수정에 성공했습니다.") },
+            confirmButton = {
+                TextButton(onClick = { showSuccessDialog = false }) {
+                    Text("확인", color = primaryColor)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = { Text("실패") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("확인", color = primaryColor)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+
 }
 
+@Composable
+fun BusinessValidationDialog(
+    show: Boolean,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    if (show) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("알림") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("확인", color = primaryColor)
+                }
+            },
+            containerColor = Color.White
+        )
+    }
+}
