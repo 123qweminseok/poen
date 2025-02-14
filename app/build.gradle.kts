@@ -60,7 +60,6 @@ dependencies {
 
 
 
-
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
@@ -76,6 +75,7 @@ dependencies {
     implementation(libs.camera.camera2)
     implementation(project(":bluetooth-module"))
     implementation(libs.firebase.appdistribution.gradle)
+    implementation(libs.firebase.crashlytics.buildtools)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
@@ -96,6 +96,8 @@ dependencies {
 
     implementation("com.google.mlkit:barcode-scanning:17.0.3")
 
+
+    implementation ("org.greenrobot:eventbus:3.2.0")
     implementation ("com.github.bumptech.glide:compose:1.0.0-alpha.3")
 
     implementation("androidx.camera:camera-core:1.4.0-alpha02")

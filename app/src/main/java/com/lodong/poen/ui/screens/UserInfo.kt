@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,9 @@ import com.lodong.apis.MemberApi.SellerUpdateRequest
 import com.lodong.apis.SignUpApis
 import com.lodong.poen.SeverRequestResponse.SignUpViewModel
 import com.lodong.poen.SeverRequestResponse.SignUpViewModelFactory
+import com.lodong.poen.ui.CustomBrownButton2
 import com.lodong.poen.viewmodel.LoginViewModel
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun UserInfoEditScreen(
@@ -442,10 +445,11 @@ fun UserInfoEditScreen(
                         modifier = Modifier.width(inputSize),
                         value = businessNumber.value,
                         onValueChange = { businessNumber.value = it }
-                        ,hint = "ㅡ입력x"
+                        ,hint = " - 없이 입력"
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    CustomBrownButton(
+
+                    CustomBrownButton2(
                         onClick = {
                             signupViewModel.validateBusiness(
                                 businessNumber = businessNumber.value,
@@ -461,7 +465,7 @@ fun UserInfoEditScreen(
                                 }
                             )
                         },
-                        text = "      사업자 확인\n(아래 4칸 모두 입력)",
+                        text = stringResource(id = R.string.business_button_text)
                     )
                 }
 
@@ -498,7 +502,7 @@ fun UserInfoEditScreen(
                         modifier = Modifier.width(inputSize),
                         value = businessOpenDate.value,
                         onValueChange = { businessOpenDate.value = it },
-                        hint = "YYYY-MM-DD"
+                        hint = "YYYY-MM-DD 형식"
                     )
                 }
 

@@ -3,6 +3,7 @@ package com.lodong.poen.ui.screens
 import BluetoothViewModel
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Intent
@@ -45,38 +46,43 @@ fun BluetoothScreen(
     val devices by bluetoothViewModel.devices.collectAsState()
     val preferencesHelper = bluetoothViewModel.preferencesHelper
     val context = LocalContext.current
+
     val bluetoothSwitchState = remember {
         mutableStateOf(preferencesHelper.getBoolean("bluetooth_switch_state", false))
     }
+    val bluetoothModel = remember { BluetoothModel(context) }
+    val permissionGranted by bluetoothModel.permissionGranted.collectAsState()
+    var showEnableBluetoothDialog by remember { mutableStateOf(false) }
+
+
+// 블루투스 활성화 요청 표시 여부를 추적하는 상태
+    var hasShownBluetoothRequest by remember { mutableStateOf(false) }
+
+// 블루투스 활성화 요청에 대한 결과 처리 런처
     val bluetoothEnableLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode != android.app.Activity.RESULT_OK) {
+        hasShownBluetoothRequest = true  // 요청을 표시했음을 표시
+        if (result.resultCode != Activity.RESULT_OK) {
             Toast.makeText(context, "블루투스를 활성화하지 않으면 작동하지 않습니다.", Toast.LENGTH_SHORT).show()
-        }
-    }
-    // 블루투스 권한 요청 (API 31 이상)
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val permissions = arrayOf(
-                android.Manifest.permission.BLUETOOTH_SCAN,
-                android.Manifest.permission.BLUETOOTH_CONNECT
-            )
-            ActivityCompat.requestPermissions(context as android.app.Activity, permissions, 1)
+            bluetoothSwitchState.value = false
+            preferencesHelper.putBoolean("bluetooth_switch_state", false)
         }
     }
 
-    LaunchedEffect(bluetoothSwitchState.value) {
-        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        if (bluetoothSwitchState.value) {
-            if (bluetoothAdapter?.isEnabled == false) {
-                // 블루투스 활성화 요청
-//                Toast.makeText(context, "블루투스를 켜야 작동합니다.", Toast.LENGTH_SHORT).show()
-                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                bluetoothEnableLauncher.launch(enableBtIntent)
-            }
+
+
+    // 초기 권한 체크
+    LaunchedEffect(Unit) {
+        if (!bluetoothModel.checkPermissions()) {
+            bluetoothModel.requestPermissions(context as Activity)
+            bluetoothSwitchState.value = false
+            preferencesHelper.putBoolean("bluetooth_switch_state", false)
         }
     }
+
+
+
 
     // 화면 진입 시 초기화
     LaunchedEffect(Unit) {
@@ -84,36 +90,38 @@ fun BluetoothScreen(
         }
     }
 
+
+
     // 스위치 상태에 따른 스캔 처리
-    LaunchedEffect(bluetoothSwitchState.value) {
+    LaunchedEffect(bluetoothSwitchState.value, permissionGranted) {
         if (bluetoothSwitchState.value) {
             // 권한 확인
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                Log.e("BluetoothScreen", "BLUETOOTH permissions are missing")
-                // 권한 요청
-                ActivityCompat.requestPermissions(
-                    context as android.app.Activity,
-                    arrayOf(
-                        Manifest.permission.BLUETOOTH_SCAN,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ),
-                    1
-                )
-                return@LaunchedEffect // 권한 없으면 BLE 스캔 중단
+            if (!permissionGranted) {
+                bluetoothModel.requestPermissions(context as Activity)
+                return@LaunchedEffect
             }
 
-
+            // 블루투스 상태 확인
+            if (!bluetoothModel.isBluetoothEnabled()) {
+                if (!bluetoothModel.enableBluetooth()) {
+                    val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                    bluetoothEnableLauncher.launch(enableBtIntent)
+                    return@LaunchedEffect
+                }
+            }
 
             // BLE 스캔 시작
-            bluetoothViewModel.stopBleScan() // 기존 스캔 중단
-            bluetoothViewModel.startBleScan() // 새 스캔 시작
+//            bluetoothViewModel.stopBleScan()
+            // 즉시 첫 스캔 시작
+            bluetoothViewModel.startBleScan()
 
-            // 30초마다 스캔 갱신
+            // 더 짧은 주기로 스캔 갱신
             while (bluetoothSwitchState.value) {
-                delay(30000) // 30초 대기
+                delay(3000)  // 이것 짧으면 안됨. 하나의 스캔 길이임 . 패킷 길이를 그래야 다 받음.
+                if (!bluetoothSwitchState.value) break
+
                 bluetoothViewModel.stopBleScan()
-                delay(500) // 잠시 대기 후 다시 시작
+                delay(300)   // 아주 짧은 대기
                 bluetoothViewModel.startBleScan()
             }
         } else {
@@ -123,25 +131,127 @@ fun BluetoothScreen(
     }
 
 
+
+
+
+    // 블루투스 초기 설정을 위한 단일 LaunchedEffect
     LaunchedEffect(Unit) {
         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-        if (bluetoothSwitchState.value && bluetoothAdapter?.isEnabled == false) {
-            // 스위치는 켜져있는데 블루투스가 꺼져있는 경우
-            Toast.makeText(context, "휴대전화 블루투스를 켜주고 실행해주세요", Toast.LENGTH_SHORT).show()
-            bluetoothAdapter.enable() // 블루투스 자동 활성화
+
+        // 권한 체크
+        if (!bluetoothModel.checkPermissions()) {
+            bluetoothModel.requestPermissions(context as Activity)
+            bluetoothSwitchState.value = false
+            preferencesHelper.putBoolean("bluetooth_switch_state", false)
+            return@LaunchedEffect
+        }
+
+        // 블루투스가 꺼져있고 스위치가 켜져있거나, 둘 다 꺼져있는 경우
+        if (!bluetoothAdapter?.isEnabled!!) {
+            showEnableBluetoothDialog = true
         }
     }
 
-    // 블루투스 상태 변경 감지
-    LaunchedEffect(bluetoothSwitchState.value) {
-        while (bluetoothSwitchState.value) {
-            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
-            if (!bluetoothAdapter?.isEnabled!!) {
-                Toast.makeText(context, "휴대전화 블루투스를 켜주고 실행해주세요", Toast.LENGTH_SHORT).show()
-                bluetoothAdapter.enable()
+    // 스위치 상태에 따른 스캔 처리
+    LaunchedEffect(bluetoothSwitchState.value, permissionGranted) {
+        if (bluetoothSwitchState.value) {
+            // 권한 확인
+            if (!permissionGranted) {
+                bluetoothModel.requestPermissions(context as Activity)
+                return@LaunchedEffect
             }
-            delay(1000) // 1초마다 체크
+
+            // BLE 스캔 시작
+            bluetoothViewModel.stopBleScan()
+            bluetoothViewModel.startBleScan()
+
+            // 주기적 스캔 갱신
+            while (bluetoothSwitchState.value && permissionGranted) {
+                delay(20000)
+                if (!bluetoothSwitchState.value) break
+
+                bluetoothViewModel.stopBleScan()
+                delay(100)
+
+                if (bluetoothModel.checkPermissions() && bluetoothModel.isBluetoothEnabled()) {
+                    bluetoothViewModel.startBleScan()
+                } else {
+                    break
+                }
+            }
+        } else {
+            bluetoothViewModel.stopBleScan()
+            bluetoothViewModel.clearDevices()
         }
+    }
+
+    if (showEnableBluetoothDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showEnableBluetoothDialog = false
+            },
+            icon = {
+                Icon(
+                    painter = painterResource(id = R.drawable.bluetooth),
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "블루투스 활성화",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "블루투스 기능을 사용하기 위해 블루투스를 켜시겠습니까?",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showEnableBluetoothDialog = false
+                        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                        bluetoothEnableLauncher.launch(enableBtIntent)
+                        bluetoothSwitchState.value = true
+                        preferencesHelper.putBoolean("bluetooth_switch_state", true)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFF4CAF50)
+                    )
+                ) {
+                    Text(
+                        "확인",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showEnableBluetoothDialog = false
+                        Toast.makeText(
+                            context,
+                            "블루투스를 활성화하지 않으면 기능이 제한됩니다.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color.Gray
+                    )
+                ) {
+                    Text("취소")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            tonalElevation = 8.dp
+        )
     }
 
 
@@ -190,7 +300,6 @@ fun BluetoothScreen(
 
 
 
-
             Switch(
                 checked = bluetoothSwitchState.value,
                 onCheckedChange = { isChecked ->
@@ -200,16 +309,51 @@ fun BluetoothScreen(
                             bluetoothSwitchState.value = true
                             preferencesHelper.putBoolean("bluetooth_switch_state", true)
                         } else {
-//                            Toast.makeText(context, "블루투스가 꺼져있습니다. 블루투스를 켜주세요", Toast.LENGTH_SHORT).show()
                             bluetoothSwitchState.value = false
                             bluetoothViewModel.clearDevices()
                         }
                     } else {
-                        bluetoothSwitchState.value = false
-                        preferencesHelper.putBoolean("bluetooth_switch_state", false)
-                        bluetoothViewModel.stopBleScan()
-                        bluetoothViewModel.clearDevices()
+                        try {
+                            bluetoothSwitchState.value = false
+                            preferencesHelper.putBoolean("bluetooth_switch_state", false)
+
+                            // GATT 연결 해제 (버전별 처리)
+                            bluetoothViewModel.service.bleManager.currentGatt?.let { gatt ->
+                                when {
+                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                                        if (ActivityCompat.checkSelfPermission(context,
+                                                Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                                            gatt.disconnect()
+                                            gatt.close()
+                                        }
+                                    }
+                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                                        if (ActivityCompat.checkSelfPermission(context,
+                                                Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                                            gatt.disconnect()
+                                            gatt.close()
+                                        }
+                                    }
+                                    else -> {
+                                        // Android 10 이하
+                                        gatt.disconnect()
+                                        gatt.close()
+                                    }
+                                }
+                            }
+
+                            // 스캔 중지 및 데이터 초기화
+                            bluetoothViewModel.stopBleScan()
+                            bluetoothViewModel.service.bleManager.resetAllData()
+                            bluetoothViewModel.service.bleManager.resetServerData()
+                            bluetoothViewModel.service.bleManager.resetOriginalDataList()
+                            bluetoothViewModel.clearDevices()
+
+                        } catch (e: Exception) {
+                            Log.e("BluetoothScreen", "Error during cleanup: ${e.message}")
+                        }
                     }
+
                 },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
@@ -218,7 +362,6 @@ fun BluetoothScreen(
                     uncheckedTrackColor = Color(0xFFE0E0E0)
                 )
             )
-
 
 
         }
@@ -253,7 +396,12 @@ fun BluetoothScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                                     .clickable {
-                                        if (deviceWithStatus.status != BluetoothViewModel.PairingStatus.Loading) {
+                                        // 이미 연결된 경우 disconnectDevice를 호출합니다.
+                                        if (deviceWithStatus.status is BluetoothViewModel.PairingStatus.Success) {
+                                            bluetoothViewModel.disconnectDevice(context, deviceWithStatus.device)
+                                        }
+                                        // 로딩 중이 아닌 경우에만 연결 시도합니다.
+                                        else if (deviceWithStatus.status !is BluetoothViewModel.PairingStatus.Loading) {
                                             val serviceUUID = BLEServerManager.DEFAULT_SERVICE_UUID
                                             val characteristicUUID = BLEServerManager.DEFAULT_CHARACTERISTIC_UUID
                                             val dataToSend = "Data for ${deviceWithStatus.device.name}".toByteArray(Charsets.UTF_8)

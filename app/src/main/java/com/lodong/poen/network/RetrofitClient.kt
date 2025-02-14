@@ -2,6 +2,7 @@ package com.lodong.poen.network
 
 import PreferencesHelper
 import android.util.Log
+import org.greenrobot.eventbus.EventBus
 import com.lodong.utils.ApiResponse
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -35,6 +36,8 @@ data class TokenResponse(
     val loginType: String
 )
 
+data class ServerErrorEvent(val message: String = "서버 응답 오류")
+data class ServerSuccessEvent(val message: String = "전송 성공")
 
 
 
@@ -46,11 +49,12 @@ data class TokenResponse(
 
 
 
-
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ상태감지후 메시지 띄우기ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
 
 class RetrofitClient(baseUrl: String, private val preferencesHelper: PreferencesHelper) {
     private val mutex = Mutex()
+
 
 
     private val authInterceptor = Interceptor { chain ->
@@ -69,7 +73,11 @@ class RetrofitClient(baseUrl: String, private val preferencesHelper: Preferences
         Log.d("RetrofitClient", "Final headers: ${request.headers}")
 
         var response = chain.proceed(request)
+
+
+
         Log.d("RetrofitClient", "Response code: ${response.code}")
+
 
         // 401 또는 403 에러 시 토큰 갱신 시도
         if (response.code == 401 || response.code == 403) {
@@ -90,10 +98,16 @@ class RetrofitClient(baseUrl: String, private val preferencesHelper: Preferences
                 }
             }
         }
+        // 응답 코드가 200이 아닌 모든 경우에 대해 에러 처리
+        if (response.code != 200) {
+            EventBus.getDefault().post(ServerErrorEvent())
+            Log.e("RetrofitClient", "Error: Response code is not 200 (${response.code})")
+        }
+
 
         response
     }
-
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ상태감지
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)

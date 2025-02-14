@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-permission android:name="android.permission.TRANSMIT_IR" />
     <uses-permission android:name="android.permission.UWB_RANGING" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- 안드로이드 13(API 33) 이상에서 알림 노출 시 필요 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -40,6 +41,11 @@
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
+
 
     <!-- 안드로이드 14(API 34) 이상 Foreground Service 권한 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -51,6 +57,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" />
+
+
 
     <application
         android:allowBackup="true"
@@ -68,6 +77,7 @@
             android:name="com.lodong.poen.MainActivity"
             android:exported="true"
             android:label="@string/title_activity_main"
+
             android:theme="@style/Theme.Poen">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -82,7 +92,9 @@
         <service
             android:name="com.lodong.poen.service.BluetoothForegroundService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="connectedDevice"/>
+
     </application>
 
 

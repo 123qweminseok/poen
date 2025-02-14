@@ -85,26 +85,16 @@ class BluetoothViewModel(
     }
 
 
-//    private fun checkCompletion() {
-//        completionJob?.cancel()
-//        completionJob = viewModelScope.launch {
-//            delay(3000) // 3초 대기
-//
-//            // 3초 동안 새로운 데이터가 없었다면 완료 처리
-//            if (System.currentTimeMillis() - lastDataReceivedTime >= 3000) {
-//                _diagnosisProgress.value = 1.0f
-//            }
-//        }
-//    }
 
     fun setBLEDataListener(listener: (ByteArray) -> Unit) {
         bleDataListener = listener
         service.bleManager.setBLEDataListener { data ->
             val hexString = data.joinToString(" ") { "%02X".format(it) }
             receivedDataCount = service.bleManager.getOriginalDataListSize()  // 실제 수신된 데이터 개수 반영
-
-            Log.d("BLEDataListener", "Data received: $hexString")
-            Log.d("BLEDataListener", "Total received count: $receivedDataCount")
+//
+//            Log.d("BLEDataListener", "받은 원본 데이터: $hexString")
+//            Log.d("BLEDataListener", "Total received count: $receivedDataCount")
+//BLEManager에서 받는거라 똑같음.
 
             updateProgress()
             listener.invoke(data)
@@ -240,12 +230,13 @@ class BluetoothViewModel(
         service.stopBleScan()
     }
 
+    // BluetoothViewModel.kt
     fun clearDevices() {
-        // 연결된 디바이스는 유지하도록 수정
-        val connectedDevices = _devices.value.filter { it.status == PairingStatus.Success }
-        _devices.value = connectedDevices
+        // 모든 디바이스의 상태를 Idle(연결 안됨)로 변경
+        _devices.value = _devices.value.map {
+            it.copy(status = PairingStatus.Idle, gatt = null)
+        }
     }
-
 
 
     fun connectToDevice(
@@ -291,7 +282,28 @@ class BluetoothViewModel(
 
 
 
-    //11111111111111111111111111111111111111111111 서버에서 가져옴.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+    @SuppressLint("MissingPermission")
+    fun disconnectDevice(context: Context, device: BluetoothDevice) {
+        viewModelScope.launch {
+            // _devices에서 해당 기기를 찾습니다.
+            val deviceWithStatus = _devices.value.find { it.device.address == device.address }
+            if (deviceWithStatus != null && deviceWithStatus.status is PairingStatus.Success) {
+                // 연결되어 있으면 BluetoothGatt 연결 해제 및 리소스 해제
+                deviceWithStatus.gatt?.disconnect()
+                deviceWithStatus.gatt?.close()
+                // 기기의 상태를 Idle로 업데이트합니다.
+                updateDeviceStatus(device, PairingStatus.Idle, null)
+                // bondedDevices에서도 제거할 수 있습니다.
+                _bondedDevices.value = _bondedDevices.value.filter { it.address != device.address }
+                Log.d("BluetoothViewModel", "Device disconnected: ${device.address}")
+            }
+        }
+    }
+
+
+
+
+    //11111111111111111111111111111111111111111111 서버에서 가져옴111111111.ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
     @SuppressLint("MissingPermission")
     suspend fun sendDataToDevice(
@@ -355,7 +367,10 @@ class BluetoothViewModel(
         // BluetoothForegroundService의 sendDataToDevice 호출
     }
 
-
+    fun updateConnectionState(isConnected: Boolean) {
+        // SharedPreferences에 연결 상태 저장
+        preferencesHelper.putBoolean("connection_state", isConnected)
+    }
     @SuppressLint("MissingPermission")
     private fun updateDeviceStatus(
         device: BluetoothDevice,

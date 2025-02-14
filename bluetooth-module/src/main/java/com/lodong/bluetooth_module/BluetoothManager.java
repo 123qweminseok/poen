@@ -20,6 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+
+
+
+
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ해당 파일은 없엘 예정임 하는것 없음. ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 public class BluetoothManager {
     private static final String TAG = "BluetoothManager";
     private BluetoothAdapter bluetoothAdapter;

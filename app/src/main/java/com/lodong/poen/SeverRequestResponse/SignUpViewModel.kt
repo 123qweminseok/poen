@@ -111,7 +111,9 @@ class SignUpViewModel(private val api: SignUpApis) : ViewModel() {
 
                 // 유효성 검사: 개업일자 형식 맞춰서 적으라고
                 if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(businessOpenDate.trim())) {
-                    onError("개업일자 YYYY-MM-DD 형식으로 입력해야 합니다.")
+//                    onError("개업일자 YYYY-MM-DD 형식으로 입력해야 합니다.")
+                    onError("입력을 다시 확인해주세요")
+
                     return@launch
                 }
 
@@ -133,7 +135,7 @@ class SignUpViewModel(private val api: SignUpApis) : ViewModel() {
                     }
                 } else {
                     println("칸을 다시 채워주세요 : ${response.code()}, ${response.errorBody()?.string()}") // 오류 로그
-                    onError("입력해 주세요")
+                    onError("다시 확인하세요")
                 }
             } catch (e: Exception) {
                 println("네트워크 예외: ${e.message}") // 예외 로그

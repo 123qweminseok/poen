@@ -19,6 +19,7 @@ hilt = "2.44.2"
 common = "18.11.0"
 cameraCamera2 = "1.4.1"
 firebaseAppdistributionGradle = "5.1.0"
+firebaseCrashlyticsBuildtools = "3.0.3"
 
 
 [libraries]
@@ -49,6 +50,7 @@ hilt_navigation_compose = "androidx.hilt:hilt-navigation-compose:1.0.0"
 common = { group = "com.google.mlkit", name = "common", version.ref = "common" }
 camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }
 firebase-appdistribution-gradle = { group = "com.google.firebase", name = "firebase-appdistribution-gradle", version.ref = "firebaseAppdistributionGradle" }
+firebase-crashlytics-buildtools = { group = "com.google.firebase", name = "firebase-crashlytics-buildtools", version.ref = "firebaseCrashlyticsBuildtools" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 jetbrains-kotlin-android = { id = "org.jetbrains.kotlin.android", version = "1.9.22" }

@@ -25,6 +25,11 @@ class BatteryInfoViewModel(
     private val preferencesHelper: PreferencesHelper
 ) : ViewModel() {
 
+    private val _imageUris = MutableStateFlow<List<Uri>>(emptyList())
+
+    val imageUris: StateFlow<List<Uri>> = _imageUris
+
+
     private val _manufacturers = MutableStateFlow<List<ManufacturerInfos>>(emptyList())
     val manufacturers: StateFlow<List<ManufacturerInfos>> get() = _manufacturers
 
@@ -37,11 +42,38 @@ class BatteryInfoViewModel(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> get() = _error
 
-    private val _batteryId = MutableStateFlow(preferencesHelper.getBatteryInfo()["battery_id"])
+    private val _batteryId = MutableStateFlow<String?>(null)
     val batteryId: StateFlow<String?> = _batteryId
 
     private val _navigateToQRScreen = MutableStateFlow(false)
     val navigateToQRScreen: StateFlow<Boolean> get() = _navigateToQRScreen
+    init {
+        // 초기화 시 배터리 ID 로드
+        updateBatteryId()
+        Log.d("BatteryInfoVM", "ViewModel 초기화됨, 초기 배터리 ID: ${_batteryId.value}")
+    }
+
+    // 배터리 ID 업데이트 함수
+    private fun updateBatteryId() {
+        val currentId = preferencesHelper.getBatteryInfo()["battery_id"]
+        Log.d("BatteryInfoVM", "배터리 ID 업데이트: $currentId")
+        _batteryId.value = currentId
+    }
+
+
+
+    fun addImages(newUris: List<Uri>) {
+        _imageUris.value = _imageUris.value + newUris
+    }
+
+    fun clearImages() {
+        _imageUris.value = emptyList()
+    }
+
+
+
+
+
 
     fun onNavigatedToQRScreen() {
         Log.d("BatteryInfoVM", "[onNavigatedToQRScreen] 호출됨. _navigateToQRScreen.value = false 로 설정")
@@ -54,7 +86,7 @@ class BatteryInfoViewModel(
     fun fetchManufacturers() {
         Log.d("BatteryInfoVM", "[fetchManufacturers] 함수 진입")
         viewModelScope.launch {
-            Log.d("BatteryInfoVM", "[fetchManufacturers] viewModelScope.launch 시작")
+                Log.d("BatteryInfoVM", "[fetchManufacturers] viewModelScope.launch 시작")
 
             try {
                 _loading.value = true
@@ -220,6 +252,7 @@ class BatteryInfoViewModel(
                         carManufacturerName = carManufacturerName,
                         carModelName = carModelName
                     )
+                    updateBatteryId()  // 배터리 ID 상태 업데이트
                     _navigateToQRScreen.value = true
                     Log.d("BatteryInfoVM", "[saveBatteryInfo] _navigateToQRScreen = true")
                 } ?: run {
@@ -285,6 +318,11 @@ class BatteryInfoViewModel(
         }
     }
 
+
+
+
+
+
     /**
      * 이미지 여러 장 업로드
      */
@@ -308,9 +346,7 @@ class BatteryInfoViewModel(
         viewModelScope.launch {
             Log.d("BatteryInfoVM", "[uploadMultipleImages] viewModelScope.launch 시작")
             _loading.value = true
-            Log.d("BatteryInfoVM", "[uploadMultipleImages] _loading = true")
             _error.value = null
-            Log.d("BatteryInfoVM", "[uploadMultipleImages] _error = null")
 
             try {
                 // MultipartBody.Part 목록 생성
@@ -319,12 +355,22 @@ class BatteryInfoViewModel(
                     val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
                     val inputStream = contentResolver.openInputStream(uri)
                     val extension = mimeType.substringAfter("/")
+
+                    // UUID를 사용하여 고유한 파일명 생성
+                    val uniqueFileName = "${UUID.randomUUID()}.${extension}"
+
                     // 캐시 디렉토리에 임시 파일 생성
-                    val file = File(context.cacheDir, "image.$extension").apply {
-                        outputStream().use { inputStream?.copyTo(it) }
+                    val file = File(context.cacheDir, uniqueFileName).apply {
+                        outputStream().use { outputStream ->
+                            inputStream?.use { input ->
+                                input.copyTo(outputStream)
+                            }
+                        }
                     }
+
                     val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
-                    MultipartBody.Part.createFormData("multipartFiles", file.name, requestFile)
+                    // 파일명도 고유한 이름 사용
+                    MultipartBody.Part.createFormData("multipartFiles", uniqueFileName, requestFile)
                 }
                 Log.d("BatteryInfoVM", "[uploadMultipleImages] multipartBodies 준비 완료 => size: ${multipartBodies.size}")
 
@@ -334,11 +380,18 @@ class BatteryInfoViewModel(
 
                 result.onSuccess {
                     Log.d("BatteryInfoVM", "[uploadMultipleImages] onSuccess. 이미지 업로드 성공")
+                    // 임시 파일들 정리
+                    context.cacheDir.listFiles()?.forEach { file ->
+                        if (file.extension in listOf("jpg", "jpeg", "png", "gif")) {
+                            file.delete()
+                        }
+                    }
                     onSuccess()
                 }.onFailure { exception ->
                     Log.e("BatteryInfoVM", "[uploadMultipleImages] onFailure 발생. exception = $exception", exception)
                     onError(exception.message ?: "Failed to upload images")
                 }
+
 
             } catch (e: Exception) {
                 Log.e("BatteryInfoVM", "[uploadMultipleImages] 전체 try-catch 예외 발생. e = $e", e)

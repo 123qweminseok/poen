@@ -1,5 +1,5 @@
 package com.lodong.poen
-
+import android.Manifest  // 추가
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -18,6 +18,7 @@ import com.lodong.poen.repository.BinaryBleRepository
 import com.lodong.poen.repository.SignUpRepository
 import com.lodong.poen.service.BluetoothForegroundService
 import com.lodong.poen.ui.navigation.Navigation
+import com.lodong.poen.ui.screens.BluetoothModel
 import com.lodong.poen.ui.screens.LoadingScreen
 
 
@@ -31,6 +32,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var binaryBleRepository: BinaryBleRepository
     private lateinit var signUpRepository: SignUpRepository
     private var isServiceBound = mutableStateOf(false)
+    private lateinit var bluetoothModel: BluetoothModel
+
+
+
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
@@ -51,12 +56,22 @@ class MainActivity : ComponentActivity() {
         val preferencesHelper = PreferencesHelper.getInstance(this)
         val batteryInfoRepository = BatteryInfoRepository(preferencesHelper)
 
+
+        bluetoothModel = BluetoothModel(this)
+        // 권한 체크 및 요청
+        if (!bluetoothModel.checkPermissions()) {
+            bluetoothModel.requestPermissions(this)
+        }
+
+
+
+
         binaryBleRepository = BinaryBleRepository(this)
         signUpRepository = SignUpRepository(preferencesHelper) // preferencesHelper 전달
 
         startAndBindService()
 
-        checkAndRequestPermissions()
+
 
 
 
@@ -81,47 +96,49 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    //권한 허용되어있는지 체크
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-
-    private fun checkAndRequestPermissions() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // 안드로이드 12 이상
-            arrayOf(
-                android.Manifest.permission.BLUETOOTH_SCAN,
-                android.Manifest.permission.BLUETOOTH_CONNECT,
-                android.Manifest.permission.BLUETOOTH_ADVERTISE,
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ).also { // 권한 목록 로깅 추가
-                Log.d("MainActivity", "Requesting permissions for Android 12+: ${it.joinToString()}")
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            // 블루투스 관련 권한만 체크
+            val bluetoothPermissions = permissions.mapIndexed { index, permission ->
+                permission to grantResults[index]
+            }.filter { (permission, _) ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    permission == Manifest.permission.BLUETOOTH ||
+                            permission == Manifest.permission.BLUETOOTH_ADMIN ||
+                            permission == Manifest.permission.BLUETOOTH_SCAN ||
+                            permission == Manifest.permission.BLUETOOTH_CONNECT ||
+                            permission == Manifest.permission.BLUETOOTH_ADVERTISE
+                } else {
+                    permission == Manifest.permission.BLUETOOTH ||
+                            permission == Manifest.permission.BLUETOOTH_ADMIN
+                }
             }
-        } else {
-            // 안드로이드 11 이하
-            arrayOf(
-                android.Manifest.permission.BLUETOOTH,
-                android.Manifest.permission.BLUETOOTH_ADMIN,
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ).also {
-                Log.d("MainActivity", "Requesting permissions for Android 11-: ${it.joinToString()}")
+
+            // 블루투스 권한이 하나라도 있는 경우에만 체크
+            if (bluetoothPermissions.isNotEmpty()) {
+                val allBluetoothGranted = bluetoothPermissions.all { (_, result) ->
+                    result == PackageManager.PERMISSION_GRANTED
+                }
+
+                if (allBluetoothGranted) {
+                    // 블루투스 권한이 모두 승인된 경우
+                    Log.d("MainActivity", "All Bluetooth permissions granted")
+                    // 필요한 경우 여기에 추가 초기화 로직
+                } else {
+                    // 블루투스 권한 중 일부가 거부된 경우
+                    Log.w("MainActivity", "Some Bluetooth permissions denied")
+                    bluetoothModel.showPermissionDeniedMessage()
+                }
             }
-        }
-
-        val missingPermissions = permissions.filter {
-            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (missingPermissions.isNotEmpty()) {
-            requestPermissions(
-                missingPermissions.toTypedArray(),
-                PERMISSION_REQUEST_CODE
-            )
-        } else {
-            startAndBindService()
         }
     }
-
-
 
     override fun onDestroy() {
         super.onDestroy()

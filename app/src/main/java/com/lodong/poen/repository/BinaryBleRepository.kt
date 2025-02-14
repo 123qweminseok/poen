@@ -103,7 +103,10 @@ class BinaryBleRepository(private val context: Context) {
 
                     if (response.isSuccessful) {
                         val responseBody = response.body()
-                        if (responseBody != null && responseBody.status == 200) {
+                        // status가 200이고 resultMsg가 "Insert Success"인 경우도 성공으로 처리
+                        if (responseBody != null &&
+                            (responseBody.status == 200 ||
+                                    responseBody.resultMsg == "Insert Success")) {
                             Result.success(true)
                         } else {
                             val errorMessage = responseBody?.resultMsg ?: "Unknown error"
@@ -114,7 +117,6 @@ class BinaryBleRepository(private val context: Context) {
                         val errorBody = response.errorBody()?.string()
                         Log.e(TAG, "Error response code: ${response.code()}")
                         Log.e(TAG, "Error body: $errorBody")
-
                         Result.failure(Exception("API call failed: ${response.code()} - $errorBody"))
                     }
                 } else {
@@ -125,4 +127,5 @@ class BinaryBleRepository(private val context: Context) {
                 Result.failure(e)
             }
         }
-    }}
+    }
+}

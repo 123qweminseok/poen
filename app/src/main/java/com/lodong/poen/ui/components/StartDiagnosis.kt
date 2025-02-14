@@ -22,9 +22,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lodong.poen.R
+import com.lodong.poen.network.ServerErrorEvent
+import com.lodong.poen.network.ServerSuccessEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.greenrobot.eventbus.EventBus
+import org.greenrobot.eventbus.Subscribe
+import org.greenrobot.eventbus.ThreadMode
 
 @Composable
 fun StartDiagnosis(
@@ -43,13 +48,101 @@ fun StartDiagnosis(
 
 
 
+
+
+
+    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ200 응답 안오면 에러 토스트 띄우기ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var showSuccessDialog by remember { mutableStateOf(false) }
+
+// EventBus 리스너에 성공 이벤트 구독 추가
+    LaunchedEffect(Unit) {
+        EventBus.getDefault().register(object {
+            @Subscribe(threadMode = ThreadMode.MAIN)
+            fun onServerError(event: ServerErrorEvent) {
+                showErrorDialog = true
+            }
+
+            @Subscribe(threadMode = ThreadMode.MAIN)
+            fun onServerSuccess(event: ServerSuccessEvent) {
+                showSuccessDialog = true
+            }
+        })
+    }
+
+// 성공 다이얼로그 추가
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog = false },
+            containerColor = Color.White,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 12.dp,
+            title = {
+                Text(
+                    text = "알림",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            },
+            text = {
+                Text(
+                    text = "전송 성공",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.DarkGray
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showSuccessDialog = false }) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
+    // 에러 다이얼로그 추가
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            containerColor = Color.White,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 12.dp,
+            title = {
+                Text(
+                    text = "에러",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            },
+            text = {
+                Text(
+                    text = "서버 응답 오류가 발생했습니다. 다시 시도해주세요.",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.DarkGray
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showErrorDialog = false }) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
+//ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+
+
+
     // 타임아웃 관련 상태 추가
     var showTimeoutDialog by remember { mutableStateOf(false) }
     var lastProgressTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-
-
-
+//진행률이 0%보다 크고 90% 미만일 때
+//4초 동안 진행률이 업데이트되지 않으면 (lastProgressTime과 현재 시간의 차이가 4000ms 이상)
     LaunchedEffect(progress) {
         if (progress > 0f && progress < 0.9f) {  // 90% 미만일 때만 체크
             lastProgressTime = System.currentTimeMillis()
@@ -57,7 +150,7 @@ fun StartDiagnosis(
             while (progress < 0.9f && !showTimeoutDialog) {  // 90% 미만일 때만 체크
                 delay(1000) // 1초마다 체크
                 val currentTime = System.currentTimeMillis()
-                if (currentTime - lastProgressTime > 3000) { // 3초 타임아웃
+                if (currentTime - lastProgressTime > 4000) { // 4초 타임아웃
                     showTimeoutDialog = true
                     break
                 }
@@ -102,7 +195,7 @@ fun StartDiagnosis(
             },
             text = {
                 Text(
-                    text = "장치를 리셋해주세요\n(앱 재시작 및 연결 확인)",
+                    text = "장치를 리셋해주세요\n(앱 재시작 및 블루투스 연결 재확인)",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = Color.DarkGray
                     )
@@ -119,7 +212,6 @@ fun StartDiagnosis(
 
 
 
-    // BLE 데이터 리스너 설정 이 부분이 이제 화면에 나오는거지 ㅇㅇ
     // BLE 데이터 리스너 설정 (실제 데이터 수신용)
     LaunchedEffect(Unit) {
         bluetoothViewModel.setBLEDataListener { data ->

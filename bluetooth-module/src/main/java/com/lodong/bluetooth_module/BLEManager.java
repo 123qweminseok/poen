@@ -32,12 +32,15 @@ public class BLEManager {
     private final Context context;
     private ScanCallback scanCallback;
     private final Set<String> discoveredDevices = new HashSet<>();
-    private BluetoothGatt currentGatt;
+    public BluetoothGatt currentGatt;
     private NotificationCallback notificationCallback; // Notification 콜백 추가
     private BLEDataListener bleDataListener; // BLEDataListener 참조
     private final List<byte[]> originalDataList = new ArrayList<>();  // 원본 데이터 저장용 리스트 추가
-    private final List<String> serverDataList = new ArrayList<>();
 
+    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+    private final List<String> serverDataList = new ArrayList<>(); //실제 서버 전송용 데이터
+
+    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
     private static final byte[] SENSOR_DATA_HEADER = {0x02, (byte)0x82, (byte)0x82, 0x00, 0x0E};
     private static final byte[] END_HEADER = {(byte)0xAA, (byte)0xAA, 0x03};
@@ -234,11 +237,12 @@ public class BLEManager {
                     Log.e(TAG, "Service discovery failed with status: " + status);
                 }
             }
+            private long lastProcessedTime = 0;
+            private static final long PROCESS_INTERVAL = 100; // 100ms 간격으로 처리
 
-            //중요0// 1. BLEManager에서 데이터 최초 수신
+            //1. BLEManager에서 데이터 최초 수신
             // TODO 이파트
-// BLEManager.java의 onCharacteristicChanged 메서드 수정
-            //BLE장치에서 앱으로 데이터 수신하는 부분임. BLE 장치에서 데이터를 처음 수신하는 핵심적인 부분!!
+            //BLE장치에서 앱으로 데이터 수신하는 부분임. BLE 장치에서 데이터를 처음 수신하는 핵심적인 부분
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                 byte[] data = characteristic.getValue();
@@ -247,16 +251,25 @@ public class BLEManager {
 
 
                 // 기존 originalDataList 처리 유지
-                originalDataList.add(data);
-                StringBuilder hexString = new StringBuilder();
-                for (byte b : data) {
-                    hexString.append(String.format("%02X ", b));
+                synchronized(originalDataList) {
+                    saveOriginalData(data);  // 원본 데이터 저장
                 }
-                Log.d(TAG, "원본 데이터(" + originalDataList.size() + "번째): " + hexString.toString());
-                Log.d(TAG, "누적된 원본 데이터 개수: " + originalDataList.size());
+
+
+//                StringBuilder hexString = new StringBuilder();
+//                for (byte b : data) {
+//                    hexString.append(String.format("%02X ", b));
+//                }
+//                Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
+//                Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
+
+
 
                 // 데이터 파싱 및 처리
-                processPacketData(data);
+                synchronized(serverDataList) {
+                    processPacketData(data);    // 데이터 처리 중 다른 스레드의 간섭 방지
+                }
+
 
                 // 기존 리스너 콜백 유지
                 if (bleDataListener != null) {
@@ -268,6 +281,23 @@ public class BLEManager {
                     bluetoothCallback.onDataReadyForTransfer();
                 }
             }
+
+
+
+            private void saveOriginalData(byte[] data) {
+                synchronized(originalDataList) {
+                    originalDataList.add(data);
+                    StringBuilder hexString = new StringBuilder();
+                    for (byte b : data) {
+                        hexString.append(String.format("%02X ", b));
+                    }
+                    Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
+                    Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
+                }
+            }
+
+
+
 
             private void processPacketData(byte[] data) {
                 int index = 0;
@@ -303,8 +333,8 @@ public class BLEManager {
                                 }
                                 printServerData();
 
-                                Log.d(TAG, "저장된 17바이트 데이터(END 포함): " + bytesToHexString(chunk));
-                                Log.d(TAG, "현재 서버 데이터 크기: " + serverDataList.size());
+                                Log.d(TAG, "저장된 17바이트 데이터(실제 전송 데이터) END 포함): " + bytesToHexString(chunk));
+                                Log.d(TAG, "현재 서버 전송 데이터 크기: " + serverDataList.size());
                             }
                             index += 17;
                         } else {
@@ -427,10 +457,10 @@ public class BLEManager {
     // BLEManager.java에 추가
     public void printServerData() {
         synchronized(serverDataList) {
-            Log.d(TAG, "========== 서버 전송 데이터 목록 ==========");
-            Log.d(TAG, "전체 데이터 크기: " + serverDataList.size());
-            Log.d(TAG, "데이터: " + serverDataList);
-            Log.d(TAG, "=========================================");
+//            Log.d(TAG, "========== 서버 전송 데이터 목록 ==========");
+//            Log.d(TAG, "전체 데이터 크기: " + serverDataList.size());
+//            Log.d(TAG, "데이터: " + serverDataList);
+//            Log.d(TAG, "=========================================");
         }
     }
 

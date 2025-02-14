@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Poen</string>
-    <string name="title_activity_main">MainActivity</string>
+    <string name="title_activity_main">Poen</string>
+    <string name="business_button_text">사업자 확인&#10;아래 4칸 모두 입력</string>
+
+
 </resources>

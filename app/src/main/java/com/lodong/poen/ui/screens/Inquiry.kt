@@ -1,9 +1,11 @@
 package com.lodong.poen.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,10 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -226,32 +230,81 @@ fun InquiryHistory(
     val inquiries by viewModel.inquiries.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val selectedInquiryId = remember { mutableStateOf<String?>(null) }
 
-    Column(
-        modifier = Modifier.padding(horizontal = 32.dp)
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-        }
-
-        error?.let { errorMsg ->
-            Text(
-                text = errorMsg,
-                color = Color.Red,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-        }
-
-        inquiries.forEach { inquiry ->
-            NoticeItem(
-                title = inquiry.title ?: "-",           // null일 경우 "-" 표시
-                date = inquiry.regdate ?: "-",          // null일 경우 "-" 표시
-                content = inquiry.content ?: "내용 없음"   // null일 경우 "내용 없음" 표시
-            )
+    fun formatDate(dateString: String?): String {
+        return try {
+            if (dateString == null) return "-"
+            val pattern = if (dateString.contains("T")) {
+                dateString.split("T")[0]
+            } else {
+                dateString
+            }
+            pattern
+        } catch (e: Exception) {
+            Log.e("InquiryHistory", "날짜 변환 실패", e)
+            dateString ?: "-"
         }
     }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
 
+        LazyColumn(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (error != null) {
+                item {
+                    Text(
+                        text = error ?: "",
+                        color = Color.Red,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+
+            items(inquiries.size) { index ->
+                val inquiry = inquiries[index]
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { selectedInquiryId.value = inquiry.questionId }
+                        .padding(vertical = 16.dp)
+                ) {
+                    Text(
+                        text = inquiry.title ?: "-",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = formatDate(inquiry.regDate),  // regdate -> regDate로 수정
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                    Divider(
+                        modifier = Modifier.padding(top = 16.dp),
+                        color = Color.LightGray
+                    )
+                }
+            }
+        }
+
+        selectedInquiryId.value?.let { questionId ->
+            InquiryDetailDialog(
+                questionId = questionId,
+                onDismiss = { selectedInquiryId.value = null },
+                viewModel = viewModel
+            )
+        }
+    }
 }

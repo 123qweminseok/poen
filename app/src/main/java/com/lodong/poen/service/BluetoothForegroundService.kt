@@ -11,12 +11,14 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.content.ContentValues.TAG
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.lodong.bluetooth_module.BLEManager
 import com.lodong.bluetooth_module.BluetoothCallback
@@ -29,6 +31,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.Manifest
+import android.bluetooth.BluetoothAdapter
 
 import java.util.UUID
 
@@ -85,7 +89,123 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
     }
     ////////////필수 메서드 구현ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
 
+//블루투스 강제로 취소 해제 하는 부분 ㅡㅡㅡㅡㅡㅡ 여기서 이제 통신 끊김. 버전별로 됨. ㅡㅡㅡ 2025.02.13++
+    // BluetoothForegroundService.kt
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
 
+        try {
+            // GATT 연결 해제 시도
+            bleManager.currentGatt?.let { gatt ->
+                try {
+                    when {
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                            // Android 12 이상
+                            try {
+                                if (ActivityCompat.checkSelfPermission(this,
+                                        Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                                    gatt.disconnect()
+                                    gatt.close()
+                                }
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "S+ disconnect failed: ${e.message}")
+                            }
+                            // 권한이 없어도 시도
+                            try {
+                                gatt.disconnect()
+                                gatt.close()
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "S+ forced disconnect failed: ${e.message}")
+                            }
+                        }
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
+                            // Android 11
+                            try {
+                                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+                                    gatt.disconnect()
+                                    gatt.close()
+                                }
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "R disconnect failed: ${e.message}")
+                            }
+                            // 권한이 없어도 시도
+                            try {
+                                gatt.disconnect()
+                                gatt.close()
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "R forced disconnect failed: ${e.message}")
+                            }
+                        }
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                            // Android 6-10
+                            try {
+                                gatt.disconnect()
+                                gatt.close()
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "M-Q disconnect failed: ${e.message}")
+                                try {
+                                    gatt.disconnect()
+                                    gatt.close()
+                                } catch (e: Exception) {
+                                    Log.e("BluetoothService", "M-Q retry failed: ${e.message}")
+                                }
+                            }
+                        }
+                        else -> {
+                            // Android 5 이하
+                            try {
+                                gatt.disconnect()
+                                gatt.close()
+                            } catch (e: Exception) {
+                                Log.e("BluetoothService", "Legacy disconnect failed: ${e.message}")
+                                try {
+                                    gatt.disconnect()
+                                    gatt.close()
+                                } catch (e: Exception) {
+                                    Log.e("BluetoothService", "Legacy retry failed: ${e.message}")
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("BluetoothService", "Primary disconnect failed: ${e.message}")
+                    // 모든 방법이 실패했을 때의 최후의 시도
+                    try {
+                        gatt.disconnect()
+                        gatt.close()
+                    } catch (e: Exception) {
+                        Log.e("BluetoothService", "Final failsafe disconnect failed: ${e.message}")
+                    }
+                }
+            }
+
+            // 스캔 중지
+            bleManager.stopScan()
+
+            // 데이터 초기화
+            bleManager.resetAllData()
+            bleManager.resetServerData()
+            bleManager.resetOriginalDataList()
+
+            // Job 취소
+            sendDataJob?.cancel()
+
+            // UI 상태 초기화
+            BluetoothViewModel.instance?.let { viewModel ->
+                viewModel.clearDevices()
+            }
+
+            // 서비스 종료
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            android.os.Process.killProcess(android.os.Process.myPid())
+
+        } catch (e: Exception) {
+            Log.e("BluetoothService", "Error during cleanup: ${e.message}")
+            android.os.Process.killProcess(android.os.Process.myPid())
+
+        }
+    }
 
     override fun onDataReceived(data: ByteArray) {
         Log.d(TAG, "onDataReceived: ${data.size} bytes")
@@ -107,7 +227,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         }
 
         val currentDataSize = bleManager.getServerDataSize()
-        Log.d(TAG, "현재 수집된 데이터 크기: $currentDataSize")
+        Log.d(TAG, "현재 수집된 데이터 크기(서버 전송용): $currentDataSize")
 
         if (currentDataSize > 2090) {
             isTransferring = true  // 전송 시작 표시
@@ -337,7 +457,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
 
 
             // BLE 장치에 따라 약간의 지연이 필요할 수 있음
-            Thread.sleep(200)// 지연 시간을 적절히 조정
+            Thread.sleep(150)// 지연 시간을 적절히 조정
         }
     }
 
@@ -458,8 +578,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
             val batteryId = PreferencesHelper.getInstance(this).getString("battery_id")
 
             if (!batteryId.isNullOrBlank()) {
-                //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ중요ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
-                //지금 여기서 들어오는 Ble데이터  받고 아래에서 변환함! ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+                //지금 여기서 들어오는 Ble데이터  받고 아래에서 변환
                 val serverData = bleManager.getServerData()
 
                 if (serverData.isNotEmpty()) {
@@ -468,7 +587,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
                     Log.d(TAG, "전송할 데이터 크기: ${serverData.size}")
                     Log.d(TAG, "전송할 데이터 샘플(처음 10개): ${serverData.take(10)}")
 
-                    //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ여기가 변환하는 핵심 작업임!!!!ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+                    //    데이터 변환 핵심 작업
                     val intData = serverData.map { hexStr ->
                         hexStr.toInt(16)
                     }
@@ -479,7 +598,10 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
 
 
                     val sensorDataDtoList = listOf(SensorDataDto(data = intData))
-                    Log.d(TAG, "DTO 데이터 구조: $sensorDataDtoList")
+                    val formattedData = sensorDataDtoList.joinToString("\n") { dto ->
+                        "SensorDataDto(\n  data=[${dto.data.chunked(300).joinToString(",\n    ")}]\n)"
+                    }
+                    Log.d(TAG, "DTO 데이터 구조:\n$formattedData")
 
                     // API 요청 헤더 로깅
                     val token = PreferencesHelper.getInstance(this).getAccessToken()

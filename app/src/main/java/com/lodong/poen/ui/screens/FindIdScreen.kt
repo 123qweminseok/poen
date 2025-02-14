@@ -166,12 +166,13 @@ fun FindIdResultScreen(
     }
 
     // 성공 다이얼로그
+// 성공 다이얼로그
     if (showSuccessDialogState) {
         SuccessDialog(
+            navController = navController,  // NavController 전달
             onDismiss = { showSuccessDialogState = false }
         )
     }
-
     // 에러 다이얼로그
     if (showErrorDialogState) {
         ErrorDialog(
@@ -182,17 +183,23 @@ fun FindIdResultScreen(
 }
 
 @Composable
-fun SuccessDialog(onDismiss: () -> Unit) {
+
+fun SuccessDialog(
+    navController: NavController,  // NavController 추가
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)) // 연한 그린 버튼
+                onClick = {
+                    onDismiss()
+                    navController.navigate("login")  // 로그인 화면으로 이동
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
             ) {
-                Text(text = "확인", color = Color.White) // 버튼 텍스트 흰색
-            }
-        },
+                Text(text = "확인", color = Color.White)
+            }        },
         title = {
             Box(
                 modifier = Modifier

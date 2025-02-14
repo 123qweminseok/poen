@@ -36,7 +36,8 @@ fun InputField(
     label: @Composable () -> Unit,
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String = ""
+    placeholder: String = "",
+
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp),

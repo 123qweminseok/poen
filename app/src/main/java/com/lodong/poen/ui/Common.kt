@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +44,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
@@ -286,6 +290,52 @@ fun CustomBrownButton(onClick: () -> Unit, text: String, modifier: Modifier = Mo
         Text(text = text, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
     }
 }
+
+@Composable
+fun CustomBrownButton2(
+    onClick: () -> Unit,
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    val buttonColor = Color(0xFF795548)
+
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+        shape = RoundedCornerShape(4.dp),
+        modifier = modifier
+            .width(120.dp)
+            .heightIn(min = 48.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 16.sp,
+            maxLines = 2,  // 최대 2줄까지 표시
+            softWrap = true,  // 자동 줄바꿈 활성화
+            overflow = TextOverflow.Visible,  // 텍스트가 잘리지 않도록 설정
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @Composable
 fun InfoInputField(

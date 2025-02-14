@@ -56,11 +56,11 @@ fun DaumPostcodeDialog(
                         fontWeight = FontWeight.Bold
                     )
                 )
-                Text(
-                    "(검색 후 직접 입력)",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF757575)
-                )
+//                Text(
+//                    "(검색 후 입력)",
+//                    style = MaterialTheme.typography.bodyMedium,
+//                    color = Color(0xFF757575)
+//                )
             }
         },
         text = {

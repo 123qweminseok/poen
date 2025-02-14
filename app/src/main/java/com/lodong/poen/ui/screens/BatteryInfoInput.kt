@@ -1,12 +1,18 @@
 package com.lodong.poen.ui.screens
-
+import android.Manifest
 import BatteryInfoViewModelFactory
 import PreferencesHelper
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import android.view.ViewTreeObserver
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -77,6 +83,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.app.ActivityCompat
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.lodong.poen.ui.navigation.Routes
@@ -87,10 +94,15 @@ private enum class BatteryInfoInputStage {
 }
 
 @Composable
-fun BatteryInfoInputScenario(onExitScenario: () -> Unit,    navController: NavController  // NavController 파라미터 추가
+fun BatteryInfoInputScenario(onExitScenario: () -> Unit,    navController: NavController   // context를 appContext로 변경
+    // NavController 파라미터 추가
 ) {
     val currentStage = remember { mutableStateOf(BatteryInfoInputStage.BASIC_INFO) }
     val onPopupDismiss = remember { mutableStateOf<() -> Unit>({}) }
+
+
+
+
 
     BackHandler {
         when (currentStage.value) {
@@ -143,11 +155,13 @@ fun BatteryInfoInputScenario(onExitScenario: () -> Unit,    navController: NavCo
                 onBackButtonPressed = { currentStage.value = BatteryInfoInputStage.QR_CODE },
                 onSave = {
                     showPopup("사진 업로드가 완료되었습니다.") {
-                        onExitScenario()
+                        // 팝업의 확인 버튼 클릭 시 메인 화면으로 이동
+                        navController.navigate(Routes.MainScreen.route) {
+                            popUpTo(Routes.BatteryInfoScreen.route) { inclusive = true }
+                        }
                     }
                 },
-                navController = navController  // navController 전달
-
+                navController = navController
             )
         }
 
@@ -160,7 +174,9 @@ fun BatteryInfoInputScenario(onExitScenario: () -> Unit,    navController: NavCo
             )
             Popup(
                 text = popupText.value,
-                onDismiss = { isPopupShown.value = false }
+                onDismiss = { isPopupShown.value = false
+                    onPopupDismiss.value()  // 이 부분이 빠져있었습니다
+                }
             )
         }
     }
@@ -183,6 +199,9 @@ fun BatteryInfoInput0(
     val loading = viewModel.loading.collectAsState()
     val error = viewModel.error.collectAsState()
     val navigateToQRScreen by viewModel.navigateToQRScreen.collectAsState()
+
+
+
 
 
     val selectedManufacturer = remember {
@@ -262,6 +281,13 @@ fun BatteryInfoInput0(
                         val manufacturerId =
                             manufacturers.value.firstOrNull { it.carManufacturerName == selectedName }?.carManufacturerId
                         selectedManufacturer.value = Pair(selectedName, manufacturerId)
+                        //다른 필드 초기화
+                        selectedModel.value = null
+                        vehicleNumber.value = ""
+                        productNumber.value = ""
+                        romId.value = ""
+                        productionDate.value = ""
+
                     }
                 )
 
@@ -273,6 +299,11 @@ fun BatteryInfoInput0(
                         val carModelId =
                             models.value.firstOrNull { it.carModelName == selectedName }?.carModelId
                         selectedModel.value = Pair(selectedName, carModelId)
+                        vehicleNumber.value = ""
+                        productNumber.value = ""
+                        romId.value = ""
+                        productionDate.value = ""
+
                     }
                 )
 
@@ -298,6 +329,16 @@ fun BatteryInfoInput0(
                 )
             }
         }
+
+
+
+
+
+
+
+
+
+
 
         Spacer(modifier = Modifier.size(32.dp))
 
@@ -353,6 +394,7 @@ fun BatteryInfoInput0(
         }
     }
 }
+
 
 
 @Composable
@@ -437,6 +479,115 @@ fun BatteryInfoInput1(
     val loading = viewModel.loading.collectAsState()
     val error = viewModel.error.collectAsState()
 
+
+    // 카메라 권한 체크 및 요청
+    val hasCameraPermission = remember { mutableStateOf(false) }
+
+
+    var showPermissionDialog by remember { mutableStateOf(false) }
+
+
+
+    // 권한 요청 런처 추가
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.all { it.value }
+        if (allGranted) {
+            hasCameraPermission.value = true
+            isScanning.value = true
+        } else {
+            showPermissionDialog = true
+        }
+    }
+
+
+    fun checkCameraPermission(): Boolean {
+        return when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                // 안드로이드 13 이상
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED
+            }
+            Build.VERSION.SDK_INT <= Build.VERSION_CODES.P -> {
+                // 안드로이드 9 이하
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+            else -> {
+                // 안드로이드 10-12
+                ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                        ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+        }
+    }
+
+
+
+    // 권한 설정 화면으로 이동하는 함수
+    fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+        }
+        context.startActivity(intent)
+    }
+
+
+    LaunchedEffect(Unit) {
+        if (!checkCameraPermission()) {
+            val permissions = when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                    arrayOf(
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.READ_MEDIA_IMAGES
+                    )
+                }
+                Build.VERSION.SDK_INT <= Build.VERSION_CODES.P -> {
+                    arrayOf(
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    )
+                }
+                else -> {
+                    arrayOf(
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    )
+                }
+            }
+            requestPermissionLauncher.launch(permissions)
+        }
+    }
+
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("카메라 권한 필요") },
+            text = { Text("설정에서 권한을 허용해주세요.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    openAppSettings()
+                    showPermissionDialog = false
+                }) {
+                    Text("설정으로 이동")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("취소")
+                }
+            }
+        )
+    }
+
+
+
+
+
+
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(1500)
         isScanning.value = true
@@ -494,13 +645,16 @@ fun BatteryInfoInput1(
 
             Spacer(modifier = Modifier.size(32.dp))
 
-            // 저장하기 버튼
             Button(
                 onClick = {
-                    viewModel.registerQRCode(
-                        qrCode = scannedResult.value,
-                        onSuccess = onNext
-                    )
+                    if (checkCameraPermission()) {
+                        viewModel.registerQRCode(
+                            qrCode = scannedResult.value,
+                            onSuccess = onNext
+                        )
+                    } else {
+                        showPermissionDialog = true
+                    }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
                 shape = RoundedCornerShape(8.dp),
@@ -541,11 +695,21 @@ fun BatteryInfoInput2(
 
 ) {
     val viewModel: BatteryInfoViewModel = viewModel()
+//객체를 새로 만드는 게 아니라, 기존 ViewModel이 있으면 재사용하고, 없으면 새로 생성" 하는 방식
+
     val context = LocalContext.current
     val batteryId = viewModel.batteryId.collectAsState().value ?: ""
+    Log.d("BatteryInfoInput2", "batteryId: '$batteryId', batteryId.isEmpty: ${batteryId.isEmpty()}")
 
-    val imageUris = remember { mutableStateListOf<Uri>() } // 선택한 이미지 URI 리스트
+
+    // 이미지 URI 목록을 ViewModel로 이동
+    val imageUris = viewModel.imageUris.collectAsState().value
+
+
     var showDialog by remember { mutableStateOf(false) }
+    // 서버 에러 발생 시 표시할 다이얼로그 상태 변수 추가
+    var showServerErrorDialog by remember { mutableStateOf(false) }
+
 
 
     if (showDialog) {
@@ -596,15 +760,21 @@ fun BatteryInfoInput2(
     }
 
 
-
-
-
-
-
-
-
-
-
+    // 서버 에러 다이얼로그 (이미지 업로드 실패 시)
+    if (showServerErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerErrorDialog = false },
+            title = { Text("오류") },
+            text = { Text("정보를 다시 확인해주세요") },
+            confirmButton = {
+                TextButton(
+                    onClick = { showServerErrorDialog = false }
+                ) {
+                    Text("확인")
+                }
+            }
+        )
+    }
 
 
     // 갤러리에서 이미지 선택
@@ -612,108 +782,140 @@ fun BatteryInfoInput2(
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris: List<Uri>? ->
         uris?.let {
-            imageUris.addAll(it) // 기존 이미지 유지하고 새 이미지 추가
+            viewModel.addImages(it) // ViewModel의 함수를 통해 이미지 추가
         }
     }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Header(text = "사진 업로드", onBackButtonPressed = onBackButtonPressed)
-        Box(modifier = Modifier.fillMaxWidth(0.8f)) {
-            BatteryInfoProgress(progressIndex = 2)
-        }
+    val loading by viewModel.loading.collectAsState()
 
-        Spacer(modifier = Modifier.size(32.dp))
+    Box(modifier = Modifier.fillMaxSize()) {
+
 
         Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .fillMaxWidth(0.8f)
-                .background(Color.Transparent),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .background(Color.White)
+                .verticalScroll(rememberScrollState())
         ) {
-            Text(text = "촬영 예시")
-            Text(text = "사진 촬영 위치 : 제품번호, 전체, 커넥터 부분, 파손, 이상부분", fontSize = 12.sp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2f)
-                    .background(lightSelector),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "이미지 미전달")
+            Header(text = "사진 업로드", onBackButtonPressed = onBackButtonPressed)
+            Box(modifier = Modifier.fillMaxWidth(0.8f)) {
+                BatteryInfoProgress(progressIndex = 2)
             }
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                Text(text = "1. 필수 업로드 되어야 할 이미지 항목", fontSize = 12.sp)
-                Text(text = "     -제품번호, 전체 외관, 커넥터부분, 파손.이상 부분", fontSize = 12.sp)
-                Text(text = "2. 제품 이미지가 항목별로 자세히 보이도록 촬영해 주세요", fontSize = 12.sp)
-            }
-
-            Spacer(modifier = Modifier.size(16.dp))
-
-            // 사진 선택 버튼
-            Button(
-                onClick = { galleryLauncher.launch(arrayOf("image/*")) },
-                colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
-                shape = RoundedCornerShape(4.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.camera),
-                    contentDescription = "camera",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(text = "사진 선택", color = Color.White)
-            }
-
-            Spacer(modifier = Modifier.size(16.dp))
-
-            // 이미지 미리보기
-            ImagePreviews(imageUris = imageUris)
 
             Spacer(modifier = Modifier.size(32.dp))
 
-            // 저장 버튼
-            // 저장 버튼
-            Button(
-                colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
-                onClick = {
-                    if (batteryId == null) {
-                        showDialog = true  // 다이얼로그 표시
-                    } else {
-                        viewModel.uploadMultipleImages(
-                            context = context,
-                            imageUris = imageUris,
-                            onSuccess = {
-                                Log.d("ImageUpload", "Images uploaded successfully!")
-                                onSave()
-                            },
-                            onError = { error ->
-                                Log.e("ImageUpload", "Error: $error")
-                            }
-                        )
-                    }
-                },
-                shape = RoundedCornerShape(8.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .background(Color.Transparent),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = "저장", color = Color.White)
+                Text(text = "촬영 예시")
+                Text(text = "사진 촬영 위치 : 제품번호, 전체, 커넥터 부분, 파손, 이상부분", fontSize = 12.sp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f)
+                        .background(lightSelector),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "이미지 미전달")
+                }
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                    Text(text = "1. 필수 업로드 되어야 할 이미지 항목", fontSize = 12.sp)
+                    Text(text = "     -제품번호, 전체 외관, 커넥터부분, 파손.이상 부분", fontSize = 12.sp)
+                    Text(text = "2. 제품 이미지가 항목별로 자세히 보이도록 촬영해 주세요", fontSize = 12.sp)
+                }
+
+                Spacer(modifier = Modifier.size(16.dp))
+
+                // 사진 선택 버튼
+                Button(
+                    onClick = { galleryLauncher.launch(arrayOf("image/*")) },
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.camera),
+                        contentDescription = "camera",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(text = "사진 선택", color = Color.White)
+                }
+
+                Spacer(modifier = Modifier.size(16.dp))
+
+                // 이미지 미리보기
+                ImagePreviews(imageUris = imageUris)
+
+                Spacer(modifier = Modifier.size(32.dp))
+
+
+
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
+                    onClick = {
+                        if (batteryId == null) {
+                            showDialog = true
+                        } else {
+
+                            val currentImages = imageUris.toList() // 현재 이미지들 복사
+                            viewModel.clearImages() // 즉시 이미지 목록 초기화
+
+                            viewModel.uploadMultipleImages(
+                                context = context,
+                                imageUris = currentImages, // 복사해둔 이미지들로 업로드
+                                onSuccess = {
+                                    Log.d("ImageUpload", "Images uploaded successfully!")
+                                    onSave()
+                                },
+                                onError = { error ->
+                                    Log.e("ImageUpload", "Error: $error")
+                                    viewModel.addImages(currentImages) // 실패 시 이미지들 복원
+                                    showServerErrorDialog = true
+                                }
+                            )
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(text = "저장", color = Color.White)
+                }
+            }
+
+
+
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Image(
+                modifier = Modifier
+                    .padding(bottom = 32.dp)
+                    .fillMaxWidth(),
+                contentScale = ContentScale.FillWidth,
+                painter = painterResource(id = R.drawable.logo_transparant),
+                contentDescription = "transparent logo"
+            )
+        }
+        // 로딩 상태일 때 전체 화면 오버레이에 큰 로딩 인디케이터 표시
+        if (loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(100.dp),
+                    strokeWidth = 8.dp,
+                    color = primaryLight
+                )
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
 
-        Image(
-            modifier = Modifier
-                .padding(bottom = 32.dp)
-                .fillMaxWidth(),
-            contentScale = ContentScale.FillWidth,
-            painter = painterResource(id = R.drawable.logo_transparant),
-            contentDescription = "transparent logo"
-        )
     }
 }
 

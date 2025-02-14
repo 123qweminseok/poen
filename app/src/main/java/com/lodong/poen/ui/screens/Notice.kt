@@ -9,41 +9,82 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lodong.poen.R
 import com.lodong.poen.ui.SettingsCategory
 import com.lodong.poen.ui.SettingsHeader
 import com.lodong.poen.ui.theme.lightSelector
+import com.lodong.poen.viewmodel.NoticesViewModel
+import kotlinx.coroutines.launch
 
 @Composable
-fun NoticeScreen(onBackButtonPressed: () -> Unit) {
+fun NoticeScreen(
+    onBackButtonPressed: () -> Unit,
+    viewModel: NoticesViewModel = viewModel(
+        factory = NoticesViewModel.NoticesViewModelFactory(LocalContext.current)
+    )
+) {
+    val notices by viewModel.notices.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .background(Color.White)
     ) {
         SettingsHeader(text = "공지사항", onBackButtonPressed = onBackButtonPressed)
         SettingsCategory(text = "")
+
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+
+        error?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+
         Column(
             modifier = Modifier.fillMaxWidth(0.8f),
         ) {
-            NoticeItem("개인정보 열람 및 수정에 대한 안내", "2021.09.01", "content\ncontent")
-            NoticeItem("비밀번호 변경 안내", "2021.09.01", "")
-            NoticeItem("업그레이드 및 리뉴얼", "2021.09.01", "")
-        }
+            notices.forEach { notice ->
+                NoticeItem(
+                    noticeId = notice.noticeId,
+                    title = notice.title,
+                    date = formatDate(notice.regDate),
+                    viewModel = viewModel
+                )
+            }        }
+
+
         Spacer(modifier = Modifier.weight(1f))
         Image(
             modifier = Modifier
@@ -56,14 +97,43 @@ fun NoticeScreen(onBackButtonPressed: () -> Unit) {
     }
 }
 
+private fun formatDate(dateString: String): String {
+    return try {
+        if (dateString.contains("T")) {
+            dateString.split("T")[0]
+        } else {
+            dateString
+        }
+    } catch (e: Exception) {
+        dateString
+    }
+}
+
+
 @Composable
-fun NoticeItem(title: String, date: String, content: String) {
+fun NoticeItem(
+    noticeId: String,
+    title: String,
+    date: String,
+    viewModel: NoticesViewModel,
+    content: String? = null
+) {
+    val scope = rememberCoroutineScope()
     val isExpanded = remember { mutableStateOf(false) }
+    val selectedContent by viewModel.selectedNoticeContent.collectAsState()
+
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { isExpanded.value = !isExpanded.value },
+                .clickable {
+                    isExpanded.value = !isExpanded.value
+                    if (isExpanded.value) {
+                        scope.launch {
+                            viewModel.getNoticeDetail(noticeId)
+                        }
+                    }
+                },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -80,10 +150,23 @@ fun NoticeItem(title: String, date: String, content: String) {
             )
         }
         if (isExpanded.value) {
-            Text(text = content)
+            if (viewModel.isLoading.collectAsState().value) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.CenterHorizontally)
+                )
+            } else {
+                Text(
+                    text = selectedContent ?: "내용을 불러오는 중입니다...",
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
         }
         Divider(
-            modifier = Modifier.fillMaxWidth(), color = lightSelector, thickness = 2.dp
+            modifier = Modifier.fillMaxWidth(),
+            color = lightSelector,
+            thickness = 2.dp
         )
     }
 }
