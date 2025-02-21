@@ -14,6 +14,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import java.util.concurrent.TimeUnit
 
 const val BASE_URL = "https://beri-link.co.kr"
 
@@ -98,7 +99,7 @@ class RetrofitClient(baseUrl: String, private val preferencesHelper: Preferences
                 }
             }
         }
-        // 응답 코드가 200이 아닌 모든 경우에 대해 에러 처리
+        // 응답 코드가 200이 아닌 모든 경우에 대해 에러 처리  해당 부분이 이제 전송시 에러 코드 띄움 ㅇㅇ
         if (response.code != 200) {
             EventBus.getDefault().post(ServerErrorEvent())
             Log.e("RetrofitClient", "Error: Response code is not 200 (${response.code})")
@@ -109,8 +110,16 @@ class RetrofitClient(baseUrl: String, private val preferencesHelper: Preferences
     }
 //ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ상태감지
 
+//    private val okHttpClient = OkHttpClient.Builder()
+//        .addInterceptor(authInterceptor)
+//        .build()
+
+//2025.02.21 수정. 문제시 위에 부분 가져오면 됨.
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .connectTimeout(60, TimeUnit.SECONDS)  // 연결 타임아웃
+        .writeTimeout(60, TimeUnit.SECONDS)    // 쓰기 타임아웃
+        .readTimeout(60, TimeUnit.SECONDS)     // 읽기 타임아웃
         .build()
 
     private val retrofit = Retrofit.Builder()

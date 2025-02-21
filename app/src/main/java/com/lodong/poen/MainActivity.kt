@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
             bluetoothModel.requestPermissions(this)
         }
 
+        bluetoothModel.requestEnableLocationService(this)
 
 
 

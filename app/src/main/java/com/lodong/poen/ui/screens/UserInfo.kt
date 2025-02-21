@@ -64,6 +64,46 @@ import com.lodong.poen.SeverRequestResponse.SignUpViewModelFactory
 import com.lodong.poen.ui.CustomBrownButton2
 import com.lodong.poen.viewmodel.LoginViewModel
 import androidx.compose.ui.res.stringResource
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+
+
+private fun formatBusinessDate(input: String): String {
+    // 하이픈 제거 및 숫자만 추출
+    val digits = input.replace("-", "").filter { it.isDigit() }
+
+    return if (digits.length >= 8) {
+        val year = digits.substring(0, 4)
+        val month = digits.substring(4, 6)
+        val day = digits.substring(6, 8)
+        "$year-$month-$day"
+    } else {
+        // 8자리가 안되면 그대로 원본 숫자 반환 (입력 도중에는 변경하지 않음)
+        digits
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @Composable
 fun UserInfoEditScreen(
@@ -121,8 +161,16 @@ fun UserInfoEditScreen(
     var showZipDialog by remember { mutableStateOf(false) }
 
 
-    var showDialog by remember { mutableStateOf(false) }
-    var dialogMessage by remember { mutableStateOf("") }
+    val dialogMessage = remember { mutableStateOf("") } // dialogMessage 상태 선언
+    val showDialog = remember { mutableStateOf(false) }  // showDialog 상태 선언
+
+
+// 각각의 다이얼로그 상태 분리
+    var showPersonalZipDialog = remember { mutableStateOf(false) } // 개인 주소 검색 다이얼로그
+    var showBusinessZipDialog = remember { mutableStateOf(false) } // 사업장 주소 검색 다이얼로그
+
+
+    val isBusinessValidated = remember { mutableStateOf(false) } //칸 입력 x
 
 // ㅡㅡㅡㅡ판매자 정보를 위한 상태 변수들 추가
 
@@ -135,6 +183,9 @@ fun UserInfoEditScreen(
     val businessDetailAddress = remember { mutableStateOf("") }
     val businessAccountBank = remember { mutableStateOf("") }
     val businessAccountNumber = remember { mutableStateOf("") }
+
+
+
 
 // 은행 목록
     val bankList = listOf(
@@ -189,6 +240,83 @@ fun UserInfoEditScreen(
         }
     }
 
+
+
+
+
+    fun validateInputs(
+        isSeller: Boolean,
+        userName: String,
+        phoneNumber: String,
+        zipCode: String,
+        defaultAddress: String,
+        detailAddress: String,
+        businessNumber: String?,
+        businessName: String?,
+        businessZipCode: String?,
+        businessAddress: String?,
+        businessDetailAddress: String?
+    ): Boolean {
+        if (!isSeller) {
+            if (userName.isEmpty()) {
+                dialogMessage.value = "이름을 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (phoneNumber.isEmpty() || !phoneNumber.matches(Regex("^01[0-9]{8,9}$"))) {
+                dialogMessage.value = "올바른 전화번호를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (zipCode.isEmpty() || zipCode.length != 5) {
+                dialogMessage.value = "올바른 우편번호를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (defaultAddress.isEmpty()) {
+                dialogMessage.value = "기본 주소를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+        } else { // 판매자일 때 유효성 검사
+            if (businessNumber.isNullOrEmpty() || businessNumber.length != 10) {
+                dialogMessage.value = "올바른 사업자 등록번호를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (businessName.isNullOrEmpty()) {
+                dialogMessage.value = "사업장명을 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (businessZipCode.isNullOrEmpty() || businessZipCode.length != 5) {
+                dialogMessage.value = "올바른 사업장 우편번호를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+            if (businessAddress.isNullOrEmpty()) {
+                dialogMessage.value = "사업장 주소를 입력해주세요."
+                showDialog.value = true
+                return false
+            }
+
+            if (!isBusinessValidated.value) {
+                dialogMessage.value = "사업자 인증을 먼저 완료해주세요."
+                showDialog.value = true
+                return false
+            }
+
+
+        }
+        return true
+    }
+
+
+
+
+
+
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -202,6 +330,10 @@ fun UserInfoEditScreen(
             color = lightSelector,
             thickness = 2.dp
         )
+
+
+
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -214,8 +346,10 @@ fun UserInfoEditScreen(
                 checked = isSellerMode.value,
                 onCheckedChange = { isSellerMode.value = it },
                 colors = androidx.compose.material3.SwitchDefaults.colors(
-                    checkedThumbColor = Color.Green,
-                    uncheckedThumbColor = Color.Gray
+                    checkedThumbColor = Color.White,  // 선택 시 썸(thumb)을 하얀색
+                    uncheckedThumbColor = Color.LightGray,  // 비선택 시 썸을 연한 회색
+                    checkedTrackColor = Color(0xFF4CAF50),  // 선택 시 트랙을 녹색으로
+                    uncheckedTrackColor = Color(0xFFBDBDBD)  // 비선택 시 트랙을 연한 회색으로
                 )
             )
         }
@@ -317,6 +451,7 @@ fun UserInfoEditScreen(
                     .height(inputHeight),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Text(modifier = Modifier.width(labelSize), text = "우편번호", style = labelTextStyle)
                 InfoInputField(
                     modifier = Modifier.width(inputSize),
@@ -326,34 +461,44 @@ fun UserInfoEditScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 CustomBrownButton(
                     onClick = {
-                        println("우편번호 검색 버튼 클릭됨") // 로그 추가
-                        showZipDialog = true
+                        showPersonalZipDialog.value = true // 개인 주소 검색 다이얼로그 열기
                     },
                     text = "우편번호 검색"
                 )
 // 기존 dialog 호출 부분 수정
-                if (showZipDialog) {
+
+
+
+                if (showPersonalZipDialog.value) {
                     DaumPostcodeDialog(
                         onAddressSelected = { addressJson ->
-                            // 다이얼로그 내부에서 선택된 주소가 JSON 형태로 넘어옴
-                            val data =
-                                kotlinx.serialization.json.Json.decodeFromString<ZipAddressData>(
-                                    addressJson
-                                )
-                            // ZipAddressData = (zonecode, address, extraAddress 등)
+                            println("다음 우편번호 서비스에서 반환된 JSON: $addressJson")
+                            try {
+                                val jsonElement = kotlinx.serialization.json.Json.parseToJsonElement(addressJson)
 
-                            // 여기서 JoinScreen의 zipCode.value를 채운다
-                            zipCode.value = data.zonecode
-                            // 다른 필드도 필요하다면 더 설정
-                            // defaultAddress.value = data.address
+                                // 우편번호 파싱 및 설정
+                                val zonecode = jsonElement.jsonObject["zonecode"]?.jsonPrimitive?.content ?: ""
+                                zipCode.value = zonecode
 
-                            // 다이얼로그 닫기
-                            showZipDialog = false
+                                // 기본 주소 파싱 및 설정
+                                val address = jsonElement.jsonObject["address"]?.jsonPrimitive?.content ?: ""
+                                defaultAddress.value = address
+
+                                // 상세 주소(건물명 등) 파싱 및 설정
+                                val extraAddress = jsonElement.jsonObject["extraAddress"]?.jsonPrimitive?.content ?: ""
+                                detailAddress.value = extraAddress
+
+                                println("파싱된 주소 정보: 우편번호=$zonecode, 주소=$address, 상세=$extraAddress")
+                            } catch (e: Exception) {
+                                println("JSON 파싱 에러: $e")
+                            }
+                            showPersonalZipDialog.value = false  // 다이얼로그 닫기
                         },
                         onDismissRequest = {
-                            showZipDialog = false
+                            showPersonalZipDialog.value = false
                         }
                     )
+
                 }
             }
 
@@ -445,7 +590,9 @@ fun UserInfoEditScreen(
                         modifier = Modifier.width(inputSize),
                         value = businessNumber.value,
                         onValueChange = { businessNumber.value = it }
-                        ,hint = " - 없이 입력"
+                        ,hint = " - 없이 입력",
+                        enabled = !isBusinessValidated.value  // 인증 완료 시 수정 불가
+
                     )
                     Spacer(modifier = Modifier.width(8.dp))
 
@@ -456,12 +603,14 @@ fun UserInfoEditScreen(
                                 businessRepresentativeName = businessRepresentativeName.value,
                                 businessOpenDate = businessOpenDate.value,
                                 onSuccess = {
-                                    dialogMessage = "사업자 확인 완료"
-                                    showDialog = true
+                                    dialogMessage.value = "사업자 확인 완료"  // 성공 메시지
+                                    showDialog.value = true  // 다이얼로그 표시
+                                    isBusinessValidated.value = true  // 인증 완료 상태 업데이트
+
                                 },
                                 onError = { error ->
-                                    dialogMessage = error
-                                    showDialog = true
+                                    dialogMessage.value = error  // 오류 메시지
+                                    showDialog.value = true  // 다이얼로그 표시
                                 }
                             )
                         },
@@ -483,7 +632,9 @@ fun UserInfoEditScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessRepresentativeName.value,
-                        onValueChange = { businessRepresentativeName.value = it }
+                        onValueChange = { businessRepresentativeName.value = it },
+                        enabled = !isBusinessValidated.value  // 인증 완료 시 수정 불가
+
                     )
                 }
 
@@ -501,8 +652,13 @@ fun UserInfoEditScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessOpenDate.value,
-                        onValueChange = { businessOpenDate.value = it },
-                        hint = "YYYY-MM-DD 형식"
+                        onValueChange = { input ->
+                            // 입력값을 포맷팅하여 저장 (8자리가 넘어가면 YYYY-MM-DD 형식)
+                            businessOpenDate.value = formatBusinessDate(input)
+                        },
+                        hint = "YYYY-MM-DD 형식",
+                        enabled = !isBusinessValidated.value  // 인증 완료 시 수정 불가
+
                     )
                 }
 
@@ -520,10 +676,14 @@ fun UserInfoEditScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessName.value,
-                        onValueChange = { businessName.value = it }
+                        onValueChange = { businessName.value = it },
+                        enabled = !isBusinessValidated.value  // 인증 완료 시 수정 불가
+
+
                     )
                 }
 
+// 사업장 우편번호 입력 및 검색
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -542,11 +702,43 @@ fun UserInfoEditScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     CustomBrownButton(
-                        onClick = { showZipDialog = true },
+                        onClick = {
+                            showBusinessZipDialog.value = true // 사업자 주소 검색 다이얼로그 열기
+                        },
                         text = "우편번호 검색"
                     )
                 }
 
+// 사업장 주소 검색 다이얼로그 (사업장 우편번호, 주소, 상세주소 업데이트)
+                if (showBusinessZipDialog.value) {
+                    DaumPostcodeDialog(
+                        onAddressSelected = { addressJson ->
+                            println("다음 우편번호 서비스에서 반환된 JSON: $addressJson")
+                            try {
+                                val jsonElement = kotlinx.serialization.json.Json.parseToJsonElement(addressJson)
+                                val zonecode = jsonElement.jsonObject["zonecode"]?.jsonPrimitive?.content ?: ""
+                                println("추출된 zonecode: $zonecode")
+
+                                businessZipCode.value = zonecode // 사업장 우편번호 필드 업데이트
+                                val address = jsonElement.jsonObject["address"]?.jsonPrimitive?.content ?: ""
+                                businessDefaultAddress.value = address // 기본 주소 필드 업데이트
+
+                                val extraAddress = jsonElement.jsonObject["extraAddress"]?.jsonPrimitive?.content ?: ""
+                                businessDetailAddress.value = extraAddress // 상세 주소 필드 업데이트
+
+                                println("파싱된 사업장 주소 정보: 우편번호=$zonecode, 주소=$address, 상세=$extraAddress")
+                            } catch (e: Exception) {
+                                println("JSON 파싱 에러: $e")
+                            }
+                            showBusinessZipDialog.value = false // 다이얼로그 닫기
+                        },
+                        onDismissRequest = {
+                            showBusinessZipDialog.value = false
+                        }
+                    )
+                }
+
+// 사업장 주소 입력
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -565,6 +757,7 @@ fun UserInfoEditScreen(
                     )
                 }
 
+// 사업장 상세 주소 입력
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -633,7 +826,12 @@ fun UserInfoEditScreen(
 
             Row(modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Button(
-                    onClick = {},
+                    onClick = {
+                        navController.navigate(Routes.DeleteAccount.route) {
+                            // UserInfoEditScreen까지 백스택에서 제거
+                            popUpTo(Routes.UserInfoEditScreen.route) { inclusive = true }
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, primaryColor),
@@ -643,67 +841,72 @@ fun UserInfoEditScreen(
                     Text(text = "회원탈퇴하기", color = Color.Black)
                 }
                 Spacer(modifier = Modifier.size(8.dp))
+
+
                 Button(
                     onClick = {
-                        scope.launch {
-                            try {
-                                Log.d("UserInfo", "회원정보 수정 시작 - 모드: ${if (isSellerMode.value) "판매자" else "구매자"}")
+                        val isValid = validateInputs(
+                            isSeller = isSellerMode.value,
+                            userName = userName.value,
+                            phoneNumber = phoneNumber.value,
+                            zipCode = zipCode.value,
+                            defaultAddress = defaultAddress.value,
+                            detailAddress = detailAddress.value,
+                            businessNumber = businessNumber.value,
+                            businessName = businessName.value,
+                            businessZipCode = businessZipCode.value,
+                            businessAddress = businessDefaultAddress.value,
+                            businessDetailAddress = businessDetailAddress.value
+                        )
 
-                                val response = if (isSellerMode.value) {
-                                    // 판매자 정보 업데이트 - 13개 필드
-                                    val sellerRequest = MemberApi.SellerUpdateRequest(
-                                        phoneNumber = phoneNumber.value,
-                                        zipCode = zipCode.value,
-                                        defaultAddress = defaultAddress.value,
-                                        detailAddress = detailAddress.value,
-                                        businessNumber = businessNumber.value,
-                                        businessRepresentativeName = businessRepresentativeName.value,
-                                        businessOpenDate = businessOpenDate.value,
-                                        businessName = businessName.value,
-                                        businessZipCode = businessZipCode.value,
-                                        businessDefaultAddress = businessDefaultAddress.value,
-                                        businessDetailAddress = businessDetailAddress.value,
-                                        businessAccountBank = businessAccountBank.value,
-                                        businessAccountNumber = businessAccountNumber.value
-                                    )
-                                    Log.d("UserInfo", "판매자 요청 데이터: $sellerRequest")
-                                    api.updateSellerInfo(sellerRequest)
-                                } else {
-                                    // 기존 구매자 정보 업데이트 코드는 그대로 유지
-                                    val buyerRequest = MemberApi.BuyerUpdateRequest(
-                                        phoneNumber = phoneNumber.value,
-                                        zipCode = zipCode.value,
-                                        defaultAddress = defaultAddress.value,
-                                        detailAddress = detailAddress.value
-                                    )
-                                    Log.d("UserInfo", "구매자 요청 데이터: $buyerRequest")
-                                    api.updateBuyerInfo(buyerRequest)
-                                }
+                        if (isValid) {
+                            // 유효성 검사 통과 후 API 호출
+                            scope.launch {
+                                try {
+                                    Log.d("UserInfo", "회원정보 수정 시작 - 모드: ${if (isSellerMode.value) "판매자" else "구매자"}")
 
-                                Log.d("UserInfo", "API 응답 코드: ${response.code()}")
-                                Log.d("UserInfo", "API 응답 헤더: ${response.headers()}")
+                                    // API 호출 (판매자 또는 구매자 데이터에 맞게)
+                                    val response = if (isSellerMode.value) {
+                                        val sellerRequest = MemberApi.SellerUpdateRequest(
+                                            phoneNumber = phoneNumber.value,
+                                            zipCode = zipCode.value,
+                                            defaultAddress = defaultAddress.value,
+                                            detailAddress = detailAddress.value,
+                                            businessNumber = businessNumber.value,
+                                            businessRepresentativeName = businessRepresentativeName.value,
+                                            businessOpenDate = businessOpenDate.value,
+                                            businessName = businessName.value,
+                                            businessZipCode = businessZipCode.value,
+                                            businessDefaultAddress = businessDefaultAddress.value,
+                                            businessDetailAddress = businessDetailAddress.value,
+                                            businessAccountBank = businessAccountBank.value,
+                                            businessAccountNumber = businessAccountNumber.value
+                                        )
+                                        api.updateSellerInfo(sellerRequest)
+                                    } else {
+                                        val buyerRequest = MemberApi.BuyerUpdateRequest(
+                                            phoneNumber = phoneNumber.value,
+                                            zipCode = zipCode.value,
+                                            defaultAddress = defaultAddress.value,
+                                            detailAddress = detailAddress.value
+                                        )
+                                        api.updateBuyerInfo(buyerRequest)
+                                    }
 
-                                if (response.isSuccessful) {
-                                    Log.d("UserInfo", "API 호출 성공")
-                                    Log.d("UserInfo", "응답 데이터: ${response.body()}")
-                                    showSuccessDialog = true
-                                } else {
-                                    Log.e("UserInfo", "API 호출 실패 - 상태 코드: ${response.code()}")
-                                    val errorBody = response.errorBody()?.string()
-                                    Log.e("UserInfo", "에러 응답 body: $errorBody")
-                                    Log.e("UserInfo", "에러 응답 헤더: ${response.headers()}")
-                                    errorMessage = "회원정보 수정에 실패했습니다. (${response.code()})"
+                                    if (response.isSuccessful) {
+                                        Log.d("UserInfo", "API 호출 성공")
+                                        showSuccessDialog = true
+                                    } else {
+                                        Log.e("UserInfo", "API 호출 실패 - 상태 코드: ${response.code()}")
+                                        errorMessage = "회원정보 수정에 실패했습니다. (${response.code()})"
+                                        showErrorDialog = true
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("UserInfo", "예외 발생", e)
+                                    errorMessage = "오류가 발생했습니다: ${e.message}"
                                     showErrorDialog = true
                                 }
-                            } catch (e: Exception) {
-                                Log.e("UserInfo", "예외 발생", e)
-                                Log.e("UserInfo", "예외 메시지: ${e.message}")
-                                Log.e("UserInfo", "예외 스택트레이스:", e)
-                                errorMessage = "오류가 발생했습니다: ${e.message}"
-                                showErrorDialog = true
                             }
-
-                            Log.d("UserInfo", "코루틴 실행 종료")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primaryLight),
@@ -714,6 +917,7 @@ fun UserInfoEditScreen(
                     Text(text = "회원정보수정", color = Color.White)
                 }
             }
+
 
             Spacer(modifier = Modifier.size(32.dp))
 
@@ -728,10 +932,12 @@ fun UserInfoEditScreen(
         }
     }
 
+
+
     BusinessValidationDialog(
-        show = showDialog,
-        message = dialogMessage,
-        onDismiss = { showDialog = false }
+        show = showDialog.value,  // 상태 변수의 value 사용
+        message = dialogMessage.value,  // 상태 변수의 value 사용
+        onDismiss = { showDialog.value = false }
     )
     if (showSuccessDialog) {
         AlertDialog(
@@ -783,3 +989,10 @@ fun BusinessValidationDialog(
         )
     }
 }
+
+
+
+//유효성 검사.
+
+
+

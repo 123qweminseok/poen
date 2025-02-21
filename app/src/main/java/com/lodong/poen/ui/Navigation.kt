@@ -15,6 +15,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.lodong.apis.ServiceLocator.memberApi
 import com.lodong.poen.factory.BluetoothViewModelFactory
 import com.lodong.poen.factory.FindIdViewModelFactory
 import com.lodong.poen.factory.FindPasswordViewModelFactory
@@ -137,7 +138,14 @@ fun Navigation(
                 onBackButtonPressed = { navController.popBackStack() }
             )
         }
-
+        composable(route = Routes.DeleteAccount.route) {
+            DeleteAccountScreen(
+                api = memberApi,  // 여기서 api가 전달됨
+                preferencesHelper = preferencesHelper,
+                navController = navController,
+                onBackButtonPressed = { navController.popBackStack() }
+            )
+        }
         composable(Routes.SignUpScreen.route) {
             val loginViewModel: LoginViewModel = viewModel(factory = loginViewModelFactory)  // 추가
             SignUpScreen(
@@ -195,10 +203,10 @@ fun Navigation(
                 context = LocalContext.current,
                 onBackButtonPressed = { navController.popBackStack() },
                 bluetoothViewModel = bluetoothViewModel,
-                preferencesHelper = preferencesHelper
+                preferencesHelper = preferencesHelper,
+                navController = navController  // navController 추가
             )
         }
-
         composable(Routes.NoticeScreen.route) {
             NoticeScreen(onBackButtonPressed = { navController.popBackStack() })
         }

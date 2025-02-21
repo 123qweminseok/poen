@@ -208,7 +208,7 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
     }
 
     override fun onDataReceived(data: ByteArray) {
-        Log.d(TAG, "onDataReceived: ${data.size} bytes")
+//        Log.d(TAG, "onDataReceived: ${data.size} bytes")
         synchronized(collectedData) {
             collectedData.add(data)
             CoroutineScope(Dispatchers.IO).launch {
@@ -229,12 +229,12 @@ class BluetoothForegroundService : Service() , BluetoothCallback {
         val currentDataSize = bleManager.getServerDataSize()
         Log.d(TAG, "현재 수집된 데이터 크기(서버 전송용): $currentDataSize")
 
-        if (currentDataSize > 2090) {
+        if (currentDataSize > 2040) {
             isTransferring = true  // 전송 시작 표시
 
             sendDataJob = CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    Log.d(TAG, "데이터가 2090개 초과하여 3초 후 전송을 시작합니다.")
+                    Log.d(TAG, "데이터가 2040 초과하여 3초 후 전송을 시작합니다.")
                     delay(delayTimeMillis)
 
                     withContext(NonCancellable) {  // 취소 불가능한 컨텍스트 사용

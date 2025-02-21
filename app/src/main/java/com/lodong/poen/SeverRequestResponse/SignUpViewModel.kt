@@ -108,19 +108,39 @@ class SignUpViewModel(private val api: SignUpApis) : ViewModel() {
     ) {
         viewModelScope.launch {
             try {
+                // 사업자 등록번호: 공백 제거, 10자리 숫자인지 검사
+                val trimmedBusinessNumber = businessNumber.trim()
+                if (trimmedBusinessNumber.isEmpty()) {
+                    onError("사업자 등록번호를 입력해주세요.")
+                    return@launch
+                }
+                if (trimmedBusinessNumber.length != 10 || !trimmedBusinessNumber.all { it.isDigit() }) {
+                    onError("사업자 등록번호는 10자리 숫자로 입력해야 합니다.")
+                    return@launch
+                }
 
-                // 유효성 검사: 개업일자 형식 맞춰서 적으라고
-                if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(businessOpenDate.trim())) {
-//                    onError("개업일자 YYYY-MM-DD 형식으로 입력해야 합니다.")
-                    onError("입력을 다시 확인해주세요")
+                // 대표자 성명: 공백 제거 후 값이 비어있거나 숫자가 포함되어 있으면 안 됨
+                val trimmedRepresentativeName = businessRepresentativeName.trim()
+                if (trimmedRepresentativeName.isEmpty()) {
+                    onError("대표자 성명을 입력해주세요.")
+                    return@launch
+                }
+                if (trimmedRepresentativeName.any { it.isDigit() }) {
+                    onError("대표자 성명에 숫자는 포함될 수 없습니다.")
+                    return@launch
+                }
 
+                // 개업일자: 공백 제거 후 YYYY-MM-DD 형식 검사
+                val trimmedBusinessOpenDate = businessOpenDate.trim()
+                if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(trimmedBusinessOpenDate)) {
+                    onError("개업일자는 YYYY-MM-DD 형식으로 입력해야 합니다.")
                     return@launch
                 }
 
                 val request = BusinessValidationRequest(
-                    businessNumber = businessNumber.trim(),
-                    businessRepresentativeName = businessRepresentativeName.trim(),
-                    businessOpenDate = businessOpenDate.trim()
+                    businessNumber = trimmedBusinessNumber,
+                    businessRepresentativeName = trimmedRepresentativeName,
+                    businessOpenDate = trimmedBusinessOpenDate
                 )
                 println("요청 데이터: $request") // 요청 데이터 확인
 
@@ -134,11 +154,11 @@ class SignUpViewModel(private val api: SignUpApis) : ViewModel() {
                         onError(body?.resultMsg ?: "사업자 확인 실패")
                     }
                 } else {
-                    println("칸을 다시 채워주세요 : ${response.code()}, ${response.errorBody()?.string()}") // 오류 로그
-                    onError("다시 확인하세요")
+                    println("칸을 다시 채워주세요 : ${response.code()}, ${response.errorBody()?.string()}")
+                    onError("값이 틀립니다")
                 }
             } catch (e: Exception) {
-                println("네트워크 예외: ${e.message}") // 예외 로그
+                println("네트워크 예외: ${e.message}")
                 onError(e.message ?: "네트워크 오류")
             }
         }

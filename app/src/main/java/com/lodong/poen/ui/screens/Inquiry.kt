@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -273,21 +274,27 @@ fun InquiryHistory(
 
             items(inquiries.size) { index ->
                 val inquiry = inquiries[index]
+                val isExpanded = selectedInquiryId.value == inquiry.questionId
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { selectedInquiryId.value = inquiry.questionId }
+                        .clickable {
+                            selectedInquiryId.value = if (isExpanded) null else inquiry.questionId
+                        }
                         .padding(vertical = 16.dp)
                 ) {
                     Text(
                         text = inquiry.title ?: "-",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color.Black
+                        color = Color.Black,
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = formatDate(inquiry.regDate),  // regdate -> regDate로 수정
+                        text = formatDate(inquiry.regDate),
                         fontSize = 12.sp,
                         color = Color.Gray
                     )

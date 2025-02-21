@@ -67,6 +67,33 @@ import com.lodong.poen.ui.navigation.Routes
 import com.lodong.poen.viewmodel.LoginViewModel
 import kotlinx.serialization.json.Json
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+
+
+
+
+
+
+private fun formatBusinessDate(input: String): String {
+    // 하이픈 제거 및 숫자만 추출
+    val digits = input.replace("-", "").filter { it.isDigit() }
+
+    return if (digits.length >= 8) {
+        val year = digits.substring(0, 4)
+        val month = digits.substring(4, 6)
+        val day = digits.substring(6, 8)
+        "$year-$month-$day"
+    } else {
+        // 8자리가 안되면 그대로 원본 숫자 반환 (입력 도중에는 변경하지 않음)
+        digits
+    }
+}
+
+
+
 @Composable
 fun SignUpDialog(
     show: Boolean,
@@ -140,6 +167,11 @@ fun SignUpScreen(
     val businessDetailAddress = remember { mutableStateOf("") }
     val businessAccountNumber = remember { mutableStateOf("") }
 
+    var confirmPassword = remember { mutableStateOf("") }  //비번 확인 추가
+
+    val isBusinessValidated = remember { mutableStateOf(false) } //더이상 입력 x
+
+
     val selectedBank = remember { mutableStateOf("") } // 은행 선택 상태 추가
     var showZipDialog by remember { mutableStateOf(false) }
     var selectedAddress by remember { mutableStateOf("") }
@@ -155,6 +187,12 @@ fun SignUpScreen(
     val onShowTermsDialogChange: (Boolean) -> Unit = { newValue ->
         showTermsDialog = newValue
     }
+
+
+    val showPersonalZipDialog = remember { mutableStateOf(false) } // 개인 주소 우편번호 검색 다이얼로그 상태
+
+    val showBusinessZipDialog = remember { mutableStateOf(false) } // 사업자 주소 우편번호 검색 다이얼로그 상태
+
 
     val termsContent = """
 '(주)포엔'은 (이하 '회사'는) 고객님의 개인정보를 중요시하며, "개인정보 보호법 및 관련 법령“을 준수하고 있습니다.
@@ -520,85 +558,137 @@ fun SignUpScreen(
     val validateInputs = remember {
         {
             when {
+                // 아이디 입력 여부
                 userId.value.isEmpty() -> {
-                    dialogMessage.value = "아이디를 입력해주세요"
-                    false
-                }
-                password.value.isEmpty() -> {
-                    dialogMessage.value = "비밀번호를 입력해주세요"
-                    false
-                }
-                name.value.isEmpty() -> {
-                    dialogMessage.value = "이름을 입력해주세요"
-                    false
-                }
-                email.value.isEmpty() -> {
-                    dialogMessage.value = "이메일을 입력해주세요"
-                    false
-                }
-                phoneNumber.value.isEmpty() -> {
-                    dialogMessage.value = "전화번호를 입력해주세요"
-                    false
-                }
-                emailCode.value.isEmpty() -> {
-                    dialogMessage.value = "이메일 인증을 완료해주세요"
-                    false
-                }
-                zipCode.value.isEmpty() -> {
-                    dialogMessage.value = "우편번호를 입력해주세요"
-                    false
-                }
-                defaultAddress.value.isEmpty() -> {
-                    dialogMessage.value = "기본 주소를 입력해주세요"
-                    false
-                }
-                // ★ 약관 전체 동의 체크 (termsAgreed & privacyAgreed)
-                !(termsAgreed.value && privacyAgreed.value) -> {
-                    dialogMessage.value = "약관에 모두 동의해야 회원가입이 가능합니다"
+                    dialogMessage.value = "아이디를 입력해주세요."
                     false
                 }
 
-                isSeller.value && (businessNumber.value.length != 10 || !businessNumber.value.all { it.isDigit() }) -> {
-                    dialogMessage.value = "사업자 등록번호는 10개 입력해야 합니다"
+                // 비밀번호 검증
+                password.value.isEmpty() -> {
+                    dialogMessage.value = "비밀번호를 입력해주세요."
                     false
                 }
-                // 판매자인 경우 추가 검증
+                password.value.length < 8 -> {
+                    dialogMessage.value = "비밀번호는 최소 8자리 이상이어야 합니다."
+                    false
+                }
+                !password.value.matches(Regex(".*[A-Za-z].*")) || !password.value.matches(Regex(".*[0-9].*")) -> {
+                    dialogMessage.value = "비밀번호는 영문과 숫자를 포함해야 합니다."
+                    false
+                }
+                confirmPassword.value.isEmpty() || confirmPassword.value != password.value -> {
+                    dialogMessage.value = "비밀번호 확인이 일치하지 않습니다."
+                    false
+                }
+
+                // 이름 입력 여부
+                name.value.isEmpty() -> {
+                    dialogMessage.value = "이름을 입력해주세요."
+                    false
+                }
+
+                // 이메일 검증
+                email.value.isEmpty() -> {
+                    dialogMessage.value = "이메일을 입력해주세요."
+                    false
+                }
+                !android.util.Patterns.EMAIL_ADDRESS.matcher(email.value).matches() -> {
+                    dialogMessage.value = "올바른 이메일 형식을 입력해주세요."
+                    false
+                }
+
+                // 전화번호 검증
+                phoneNumber.value.isEmpty() -> {
+                    dialogMessage.value = "전화번호를 입력해주세요."
+                    false
+                }
+                !phoneNumber.value.matches(Regex("^01[0-9]{8,9}$")) -> {
+                    dialogMessage.value = "올바른 휴대폰 번호를 입력해주세요. (예: 01012345678)"
+                    false
+                }
+
+                // 이메일 인증 여부
+                emailCode.value.isEmpty() -> {
+                    dialogMessage.value = "이메일 인증을 완료해주세요."
+                    false
+                }
+
+                // 우편번호 검증
+                zipCode.value.isEmpty() -> {
+                    dialogMessage.value = "우편번호를 입력해주세요."
+                    false
+                }
+                zipCode.value.length != 5 -> {
+                    dialogMessage.value = "우편번호는 5자리 숫자로 입력해야 합니다."
+                    false
+                }
+
+                // 주소 입력 여부
+                defaultAddress.value.isEmpty() -> {
+                    dialogMessage.value = "기본 주소를 입력해주세요."
+                    false
+                }
+
+                // 약관 동의 체크
+                !(termsAgreed.value && privacyAgreed.value) -> {
+                    dialogMessage.value = "약관에 모두 동의해야 회원가입이 가능합니다."
+                    false
+                }
+
+                // 판매자 전용 검증
+                isSeller.value && (businessNumber.value.length != 10 || !businessNumber.value.all { it.isDigit() }) -> {
+                    dialogMessage.value = "사업자 등록번호는 10자리 숫자로 입력해야 합니다."
+                    false
+                }
                 isSeller.value && businessNumber.value.isEmpty() -> {
-                    dialogMessage.value = "사업자 등록번호를 입력해주세요"
+                    dialogMessage.value = "사업자 등록번호를 입력해주세요."
                     false
                 }
                 isSeller.value && businessName.value.isEmpty() -> {
-                    dialogMessage.value = "사업장명을 입력해주세요"
+                    dialogMessage.value = "사업장명을 입력해주세요."
                     false
                 }
                 isSeller.value && bossName.value.isEmpty() -> {
-                    dialogMessage.value = "대표자 성명을 입력해주세요"
+                    dialogMessage.value = "대표자 성명을 입력해주세요."
                     false
                 }
                 isSeller.value && businessOpenDate.value.isEmpty() -> {
-                    dialogMessage.value = "개업일자를 입력해주세요"
+                    dialogMessage.value = "개업일자를 입력해주세요."
+                    false
+                }
+                isSeller.value && !businessOpenDate.value.matches(Regex("^\\d{4}-\\d{2}-\\d{2}$")) -> {
+                    dialogMessage.value = "개업일자는 YYYY-MM-DD 형식으로 입력해야 합니다."
                     false
                 }
                 isSeller.value && businessAddress.value.isEmpty() -> {
-                    dialogMessage.value = "사업장 주소를 입력해주세요"
-                    false
-                }
-                isSeller.value && businessDetailAddress.value.isEmpty() -> {
-                    dialogMessage.value = "사업장 상세주소를 입력해주세요"
+                    dialogMessage.value = "사업장 주소를 입력해주세요."
                     false
                 }
                 isSeller.value && selectedBank.value.isEmpty() -> {
-                    dialogMessage.value = "은행을 선택해주세요"
+                    dialogMessage.value = "거래 은행을 선택해주세요."
                     false
                 }
+                isSeller.value && !isBusinessValidated.value -> {
+                    dialogMessage.value = "사업자 인증을 먼저 완료해주세요."
+                    showDialog.value = true
+                    false
+                }
+
                 isSeller.value && businessAccountNumber.value.isEmpty() -> {
-                    dialogMessage.value = "계좌번호를 입력해주세요"
+                    dialogMessage.value = "계좌번호를 입력해주세요."
+                    false
+                }
+
+                isSeller.value && !businessAccountNumber.value.matches(Regex("^[0-9]+$")) -> {
+                    dialogMessage.value = "계좌번호는 숫자만 입력해야 합니다."
                     false
                 }
                 else -> true
             }
         }
     }
+
 
 
     val bankList = listOf(
@@ -636,6 +726,21 @@ fun SignUpScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 이름 입력 필드
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(inputHeight),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(modifier = Modifier.width(labelSize), text = "이름", style = labelTextStyle)
+                InfoInputField(
+                    modifier = Modifier.width(inputSize),
+                    value = name.value,
+                    hint = "홍길동",
+                    onValueChange = { name.value = it }
+                )
+            }
 
             // 아이디 입력 필드
             Row(
@@ -648,8 +753,8 @@ fun SignUpScreen(
                 InfoInputField(
                     modifier = Modifier.width(inputSize),
                     hint = "아이디를 입력하세요",
-                    value = userId.value, // 상태 값 연결
-                    onValueChange = { userId.value = it } // 상태 업데이트
+                    value = userId.value,
+                    onValueChange = { userId.value = it }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 CustomBrownButton(
@@ -668,7 +773,6 @@ fun SignUpScreen(
                     },
                     text = "중복확인"
                 )
-
             }
 
             // 비밀번호 입력 필드
@@ -682,70 +786,41 @@ fun SignUpScreen(
                 InfoInputField(
                     modifier = Modifier.width(inputSize),
                     hint = "비밀번호를 입력하세요",
-                    value = password.value, // 상태 값 연결
-                    onValueChange = { password.value = it } // 상태 업데이트
+                    value = password.value,
+                    onValueChange = { password.value = it }
                 )
             }
 
-
-            // 이름 입력 필드
+            // 비밀번호 확인 필드 (새로 추가)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(inputHeight),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(modifier = Modifier.width(labelSize), text = "이름", style = labelTextStyle)
+                Text(modifier = Modifier.width(labelSize), text = "비밀번호 확인", style = labelTextStyle)
                 InfoInputField(
                     modifier = Modifier.width(inputSize),
-                    value = name.value,
-                    hint = "홍길동",
-                    onValueChange = { name.value = it }
+                    hint = "비밀번호를 다시 입력하세요",
+                    value = confirmPassword.value,
+                    onValueChange = { confirmPassword.value = it }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                CustomBrownButton(
+                    onClick = {
+                        if (password.value == confirmPassword.value) {
+                            dialogMessage.value = "비밀번호가 일치합니다"
+                            showDialog.value = true
+                        } else {
+                            dialogMessage.value = "비밀번호가 일치하지 않습니다"
+                            showDialog.value = true
+                        }
+                    },
+                    text = "확인"
                 )
             }
 
-            // 이메일 입력 필드
-           Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(inputHeight),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-               Text(
-                   modifier = Modifier.width(labelSize),
-                   text = "이메일 주소",
-                   style = labelTextStyle
-               )
-               InfoInputField(
-                   modifier = Modifier.width(inputSize),
-                   hint = "test@gmail.com",
-                   value = email.value,
-                   onValueChange = { email.value = it }
-               )
-               Spacer(modifier = Modifier.width(8.dp))
-               CustomBrownButton(
-                   onClick = {
-                       println("인증하기 버튼 클릭됨") // 로그 추가
-                       signupViewModel.sendEmailVerificationCode(
-                           email = email.value,
-                           onSuccess = { expiresAt ->
-                               println("이메일 인증 코드 전송 성공") // 성공 로그
-                               dialogMessage.value = "전송 성공"
-                               showDialog.value = true
-                           },
-                           onError = { errorMessage ->
-                               println("이메일 인증 코드 전송 실패: $errorMessage") // 실패 로그
-                               dialogMessage.value = errorMessage
-                               showDialog.value = true
-                           }
-                       )
-                   },
-                   text = "인증하기"
-               )
-
-
-
-           }
+            // 전화번호 입력 필드
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -753,9 +828,56 @@ fun SignUpScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(modifier = Modifier.width(labelSize), text = "전화번호", style = labelTextStyle)
-                InfoInputField(modifier = Modifier.width(inputSize), value = phoneNumber.value, onValueChange = {phoneNumber.value = it})
+                InfoInputField(
+                    modifier = Modifier.width(inputSize),
+                    value = phoneNumber.value,
+                    onValueChange = {phoneNumber.value = it}
+                )
                 Spacer(modifier = Modifier.width(8.dp))
             }
+
+            // 이메일 입력 필드
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(inputHeight),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    modifier = Modifier.width(labelSize),
+                    text = "이메일 주소",
+                    style = labelTextStyle
+                )
+                InfoInputField(
+                    modifier = Modifier.width(inputSize),
+                    hint = "test@gmail.com",
+                    value = email.value,
+                    onValueChange = { email.value = it }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                CustomBrownButton(
+                    onClick = {
+                        println("인증하기 버튼 클릭됨")
+                        signupViewModel.sendEmailVerificationCode(
+                            email = email.value,
+                            onSuccess = { expiresAt ->
+                                println("이메일 인증 코드 전송 성공")
+                                dialogMessage.value = "전송 성공"
+                                showDialog.value = true
+                            },
+                            onError = { errorMessage ->
+                                println("이메일 인증 코드 전송 실패: $errorMessage")
+                                dialogMessage.value = errorMessage
+                                showDialog.value = true
+                            }
+                        )
+                    },
+                    text = "인증하기"
+                )
+
+
+
+           }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -831,28 +953,38 @@ fun SignUpScreen(
                 CustomBrownButton(
                     onClick = {
                         println("우편번호 검색 버튼 클릭됨") // 로그 추가
-                        showZipDialog = true
+                        showPersonalZipDialog.value = true  // 개인 주소 검색 다이얼로그 열기
                     },
                     text = "우편번호 검색"
                 )
 // 기존 dialog 호출 부분 수정
-                if (showZipDialog) {
+                if (showPersonalZipDialog.value) {
                     DaumPostcodeDialog(
                         onAddressSelected = { addressJson ->
-                            // 다이얼로그 내부에서 선택된 주소가 JSON 형태로 넘어옴
-                            val data = kotlinx.serialization.json.Json.decodeFromString<ZipAddressData>(addressJson)
-                            // ZipAddressData = (zonecode, address, extraAddress 등)
+                            println("다음 우편번호 서비스에서 반환된 JSON: $addressJson")
+                            try {
+                                val jsonElement = kotlinx.serialization.json.Json.parseToJsonElement(addressJson)
 
-                            // 여기서 JoinScreen의 zipCode.value를 채운다
-                            zipCode.value = data.zonecode
-                            // 다른 필드도 필요하다면 더 설정
-                            // defaultAddress.value = data.address
+                                // 우편번호 파싱 및 설정
+                                val zonecode = jsonElement.jsonObject["zonecode"]?.jsonPrimitive?.content ?: ""
+                                zipCode.value = zonecode
 
-                            // 다이얼로그 닫기
-                            showZipDialog = false
+                                // 기본 주소 파싱 및 설정
+                                val address = jsonElement.jsonObject["address"]?.jsonPrimitive?.content ?: ""
+                                defaultAddress.value = address
+
+                                // 상세 주소(건물명 등) 파싱 및 설정
+                                val extraAddress = jsonElement.jsonObject["extraAddress"]?.jsonPrimitive?.content ?: ""
+                                detailAddress.value = extraAddress
+
+                                println("파싱된 주소 정보: 우편번호=$zonecode, 주소=$address, 상세=$extraAddress")
+                            } catch (e: Exception) {
+                                println("JSON 파싱 에러: $e")
+                            }
+                            showPersonalZipDialog.value = false  // 다이얼로그 닫기
                         },
                         onDismissRequest = {
-                            showZipDialog = false
+                            showPersonalZipDialog.value = false
                         }
                     )
                 }
@@ -893,6 +1025,23 @@ fun SignUpScreen(
 
 
 // 상세 주소 입력
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(inputHeight),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    modifier = Modifier.width(labelSize),
+                    text = "상세 주소",
+                    style = labelTextStyle
+                )
+                InfoInputField(
+                    modifier = Modifier.width(inputSize),
+                    value = detailAddress.value,
+                    onValueChange = { detailAddress.value = it }
+                )
+            }
 
 // 상세 주소 입력 Row (기존 그대로)
             Row(
@@ -1142,7 +1291,9 @@ fun SignUpScreen(
                         modifier = Modifier.width(inputSize),
                         value = businessNumber.value,
                         onValueChange = { businessNumber.value = it },
-                        hint = "-없이 입력"
+                        hint = "-없이 입력",
+                        enabled = !isBusinessValidated.value // 수정 불가 처리
+
 
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1158,6 +1309,8 @@ fun SignUpScreen(
                                     // 성공 처리
                                     dialogMessage.value = "사업자 확인 완료"
                                     showDialog.value = true
+                                    isBusinessValidated.value = true
+
                                 },
                                 onError = { error ->
                                     // 실패 처리
@@ -1185,7 +1338,9 @@ fun SignUpScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = bossName.value,
-                        onValueChange = { bossName.value = it }
+                        onValueChange = { bossName.value = it },
+                        enabled = !isBusinessValidated.value // 수정 불가 처리
+
                     )
                 }
 
@@ -1204,7 +1359,9 @@ fun SignUpScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessName.value,
-                        onValueChange = { businessName.value = it }
+                        onValueChange = { businessName.value = it },
+                        enabled = !isBusinessValidated.value // 수정 불가 처리
+
                     )
                 }
 
@@ -1223,12 +1380,15 @@ fun SignUpScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessOpenDate.value,
-                        onValueChange = { businessOpenDate.value = it },
-                        hint = "YYYY-MM-DD 형식"
+                        onValueChange = { input ->
+                            // 입력값을 포맷팅하여 저장
+                            businessOpenDate.value = formatBusinessDate(input)
+                        },
+                        hint = "YYYY-MM-DD 형식",
+                        enabled = !isBusinessValidated.value
                     )
                 }
-
-                // 사업장 우편번호
+// 사업장 우편번호
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1243,39 +1403,50 @@ fun SignUpScreen(
                     InfoInputField(
                         modifier = Modifier.width(inputSize),
                         value = businessZipCode.value,
+                        hint = "주소입력",
                         onValueChange = { businessZipCode.value = it }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+
                     CustomBrownButton(
                         onClick = {
-                            println("우편번호 검색 버튼 클릭됨") // 로그 추가
-                            showZipDialog = true
+                            println("우편번호 검색 버튼 클릭됨")
+                            showBusinessZipDialog.value = true  // 사업자 주소 검색 다이얼로그 열기
                         },
                         text = "우편번호 검색"
                     )
-// 기존 dialog 호출 부분 수정
-                    if (showZipDialog) {
+
+                    if (showBusinessZipDialog.value) {
                         DaumPostcodeDialog(
                             onAddressSelected = { addressJson ->
-                                // 다이얼로그 내부에서 선택된 주소가 JSON 형태로 넘어옴
-                                val data = kotlinx.serialization.json.Json.decodeFromString<ZipAddressData>(addressJson)
-                                // ZipAddressData = (zonecode, address, extraAddress 등)
+                                println("다음 우편번호 서비스에서 반환된 JSON: $addressJson")
+                                try {
+                                    val jsonElement = kotlinx.serialization.json.Json.parseToJsonElement(addressJson)
 
-                                // 여기서 JoinScreen의 zipCode.value를 채운다
-                                zipCode.value = data.zonecode
-                                // 다른 필드도 필요하다면 더 설정
-                                // defaultAddress.value = data.address
+                                    // 우편번호 파싱 및 설정
+                                    val zonecode = jsonElement.jsonObject["zonecode"]?.jsonPrimitive?.content ?: ""
+                                    businessZipCode.value = zonecode
 
-                                // 다이얼로그 닫기
-                                showZipDialog = false
+                                    // 기본 주소 파싱 및 설정
+                                    val address = jsonElement.jsonObject["address"]?.jsonPrimitive?.content ?: ""
+                                    businessAddress.value = address
+
+                                    // 상세 주소(건물명 등) 파싱 및 설정
+                                    val extraAddress = jsonElement.jsonObject["extraAddress"]?.jsonPrimitive?.content ?: ""
+                                    businessDetailAddress.value = extraAddress
+
+                                    println("파싱된 사업장 주소 정보: 우편번호=$zonecode, 주소=$address, 상세=$extraAddress")
+                                } catch (e: Exception) {
+                                    println("JSON 파싱 에러: $e")
+                                }
+                                showBusinessZipDialog.value = false  // 다이얼로그 닫기
                             },
                             onDismissRequest = {
-                                showZipDialog = false
+                                showBusinessZipDialog.value = false
                             }
                         )
                     }
                 }
-
                 // 사업장 기본주소
                 Row(
                     modifier = Modifier
@@ -1405,7 +1576,7 @@ fun SignUpScreen(
                             detailAddress = detailAddress.value,
                             isSeller = isSeller.value,
                             onSuccess = {
-                                dialogMessage.value = "회원가입이 완료되었습니다"
+                                dialogMessage.value = "회원가입 성공"
                                 showDialog.value = true
                             },
                             onError = { errorMessage ->
@@ -1457,12 +1628,14 @@ fun SignUpScreen(
         onDismiss = { showDialog.value = false },
         onConfirm = {
             showDialog.value = false
-            if (dialogMessage.value == "회원가입이 완료되었습니다") {
-                navController.navigate(Routes.LoginScreen.route)
+            if (dialogMessage.value == "회원가입 성공") {
+                // LoginScreen으로 이동하며 SignUpScreen까지의 백스택 제거
+                navController.navigate(Routes.LoginScreen.route) {
+                    popUpTo(Routes.SignUpScreen.route) { inclusive = true }
+                }
             }
         }
     )
-
 
 
 }

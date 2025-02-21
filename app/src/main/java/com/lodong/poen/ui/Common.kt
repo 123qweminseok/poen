@@ -346,17 +346,33 @@ fun InfoInputField(
     singleLine : Boolean = true,
     borderColor: Color = primaryLighter,
     backgroundColor: Color = lightSelector,
+    enabled: Boolean = true // 추가
+
 ) {
     val isFocused = remember { mutableStateOf(false) }
+    val finalBackgroundColor = if (enabled) backgroundColor else Color.LightGray.copy(alpha = 0.4f)
+    val finalBorderColor = if (enabled) borderColor else Color.Gray
+    val textColor = if (enabled) Color.Black else Color.Gray
+
     Surface(
         modifier = modifier
-            .border(1.dp, borderColor, shape = RoundedCornerShape(4.dp))
+            .border(1.dp, finalBorderColor, shape = RoundedCornerShape(4.dp))
             .onFocusChanged { isFocused.value = it.isFocused },
         shape = RoundedCornerShape(4.dp),
-        color = backgroundColor
-    ) {
+        color = finalBackgroundColor
+    )
+    {
         BasicTextField(
-            value, onValueChange,
+            value = value,
+            // enabled가 false라면 onValueChange를 막아서 수정 불가능하게 처리
+            onValueChange = {
+                // enabled == false일 때는 입력값 변경 차단
+                if (enabled) {
+                    onValueChange(it)
+                }
+            },
+            // enabled가 false이면 readOnly를 true로 설정
+            readOnly = !enabled,
             singleLine = singleLine,
             cursorBrush = SolidColor(Color.Black),
         ) { innerTextField ->
@@ -368,7 +384,7 @@ fun InfoInputField(
                 contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart
             ) {
                 if (value.isEmpty() && !isFocused.value) {
-                    Text(text = hint, color = hintColor, fontSize = 12.sp)
+                    Text(text = hint, color = textColor.copy(alpha = 0.5f), fontSize = 12.sp)
                 } else {
                     innerTextField()
                 }

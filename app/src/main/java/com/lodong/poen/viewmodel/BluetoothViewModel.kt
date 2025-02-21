@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.LiveData
@@ -110,10 +111,10 @@ class BluetoothViewModel(
 
 
     private fun updateProgress() {
-        Log.d("Progress", "Data counts - Received: $receivedDataCount/127, Chunks: $sentChunkCount/62")
-
-        // 패킷 기준으로 수신 진행률 계산 (총 127개 패킷)
-        val receiveProgress = (receivedDataCount.toFloat() / 127f).coerceIn(0f, 1.0f)
+        Log.d("Progress", "Data counts(전송x 실제는-2패킷) - Received: $receivedDataCount/122, Chunks: $sentChunkCount/62")
+        val receivedDataCount = service.bleManager.getServerDataSize() / 17  // 17바이트씩 나누어 실제 패킷 수 계산++2025.02.14 추가한것 이러면 정확하게 올라감.
+        // 패킷 기준으로 수신 진행률 계산 (총 120개 패킷)
+        val receiveProgress = (receivedDataCount.toFloat() / 120f).coerceIn(0f, 1.0f)
 
         // 송신 진행률 계산 (총 62개 청크)
         val sendProgress = (sentChunkCount.toFloat() / 62f).coerceIn(0f, 1.0f)
@@ -121,8 +122,8 @@ class BluetoothViewModel(
         // 가중치 조정 (수신 90%, 송신 10%)
         var totalProgress = ((receiveProgress * 0.9f) + (sendProgress * 0.1f)).coerceIn(0f, 0.99f)
 
-        // 모든 데이터가 수신되었을 때 (127개 패킷, 62개 청크)
-        if (receivedDataCount >= 125 && sentChunkCount >= 62) {
+        // 모든 데이터가 수신되었을 때 (120개 패킷, 62개 청크)
+        if (receivedDataCount >= 120 && sentChunkCount >= 62) {
             // 3초 딜레이 후 100%로 설정
             completionJob?.cancel()
             completionJob = viewModelScope.launch {
@@ -134,12 +135,14 @@ class BluetoothViewModel(
             _diagnosisProgress.value = totalProgress
         }
 
-        Log.d("Progress", """
-        Progress Details:
-        - Receive: ${receiveProgress * 100}%
-        - Send: ${sendProgress * 100}%
-        - Total: ${totalProgress * 100}%
-    """.trimIndent())
+//        Log.d("Progress", """
+//        Progress Details:
+//        - Receive: ${receiveProgress * 100}%
+//        - Send: ${sendProgress * 100}%
+//        - Total: ${totalProgress * 100}%
+//    """.trimIndent())
+        Log.d("Progress", "이게 진짜임 Data counts - Received: $receivedDataCount/120, Chunks: $sentChunkCount/62")
+
     }
 
 
@@ -201,16 +204,36 @@ class BluetoothViewModel(
         }
     }
 
+
+    //실제 스캔 부분 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ2025.02.21
+    @SuppressLint("MissingPermission")
     fun startBleScan() {
         val context = service.applicationContext
 
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-            Log.e("BluetoothViewModel", "BLUETOOTH_SCAN permission is missing")
-            return
+        // 안드로이드 버전에 맞춰 권한 체크
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.BLUETOOTH_SCAN
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Log.e("BluetoothViewModel", "BLUETOOTH_SCAN permission is missing (Android 12+)")
+                return
+            }
+        } else {
+            // Android 11 이하
+            // BLE 스캔은 위치 권한으로 허용되는 구조
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Log.e("BluetoothViewModel", "ACCESS_FINE_LOCATION permission is missing (Android 11-)")
+                return
+            }
         }
 
-
-
+        // 필요한 권한이 허용된 경우, 실제 스캔 로직 실행
         service.startBleScan { device, serviceUuids, rssi ->
             viewModelScope.launch {
                 val existingDevice = _devices.value.find { it.device.address == device.address }

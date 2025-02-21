@@ -366,7 +366,7 @@ fun BluetoothScreen(
 
         }
 
-
+//해당 부분이 이제 스캔후 띄우는 부분 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ걍 배열에 있는거 가져오는거임 ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
         if (bluetoothSwitchState.value) {
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {

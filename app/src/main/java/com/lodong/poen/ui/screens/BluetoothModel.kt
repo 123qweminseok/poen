@@ -6,6 +6,7 @@ import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -23,6 +24,26 @@ class BluetoothModel(private val context: Context) {
         // 모든 권한이 허용되었는지 확인하는 편의 메서드
     }
 
+
+    fun isLocationServiceEnabled(): Boolean {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            locationManager.isLocationEnabled
+        } else {
+            locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                    locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
+    }
+    /**
+     * 위치 서비스가 비활성화되어 있다면 설정 화면을 열어 사용자에게 활성화를 유도합니다.
+     */
+    fun requestEnableLocationService(activity: Activity) {
+        if (!isLocationServiceEnabled()) {
+            Toast.makeText(context, "위치 서비스가 꺼져 있습니다. 설정에서 위치 서비스를 켜주세요.", Toast.LENGTH_LONG).show()
+            // 위치 설정 화면으로 이동
+            activity.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        }
+    }
 
 
     // 필요한 권한 목록

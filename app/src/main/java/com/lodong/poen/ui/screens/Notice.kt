@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -136,11 +137,18 @@ fun NoticeItem(
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                Text(text = title, fontSize = 16.sp)
+            Column(modifier = Modifier
+                .weight(1f)
+                .padding(vertical = 8.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    maxLines = if (isExpanded.value) Int.MAX_VALUE else 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Text(text = date, fontSize = 12.sp)
             }
-            Spacer(modifier = Modifier.weight(1f))
             Image(
                 painter = painterResource(id = R.drawable.chevron_down),
                 modifier = Modifier.graphicsLayer {

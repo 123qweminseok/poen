@@ -76,8 +76,13 @@ class LoginViewModel(
     ) {
         viewModelScope.launch {
             try {
+                // 먼저 아이디 길이 체크
+                if (identifier.length < 6 || identifier.length > 20) {
+                    onError("아이디를 6자리 이상 20자리 이하로 적어주세요")
+                    return@launch
+                }
+
                 println("중복확인 시작 - 아이디: $identifier")
-                // identifier를 Map으로 전달
                 val response = signUpRepository.apiService.checkIdentifier(mapOf("identifier" to identifier))
                 println("API 응답: ${response.body()}")
 
@@ -100,7 +105,6 @@ class LoginViewModel(
             }
         }
     }
-
 
 
 

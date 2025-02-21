@@ -255,13 +255,12 @@ public class BLEManager {
                     saveOriginalData(data);  // 원본 데이터 저장
                 }
 
-
-//                StringBuilder hexString = new StringBuilder();
-//                for (byte b : data) {
-//                    hexString.append(String.format("%02X ", b));
-//                }
-//                Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
-//                Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
+                StringBuilder hexString = new StringBuilder();
+                for (byte b : data) {
+                    hexString.append(String.format("%02X ", b));
+                }
+                Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
+                Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
 
 
 
@@ -287,18 +286,18 @@ public class BLEManager {
             private void saveOriginalData(byte[] data) {
                 synchronized(originalDataList) {
                     originalDataList.add(data);
-                    StringBuilder hexString = new StringBuilder();
-                    for (byte b : data) {
-                        hexString.append(String.format("%02X ", b));
-                    }
-                    Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
-                    Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
+//                    StringBuilder hexString = new StringBuilder();
+//                    for (byte b : data) {
+//                        hexString.append(String.format("%02X ", b));
+//                    }
+//                    Log.d(TAG, "원본 데이터(발송x)(" + originalDataList.size() + "번째): " + hexString.toString());
+//                    Log.d(TAG, "누적된 원본 데이터 개수(발송x): " + originalDataList.size());
                 }
             }
 
 
 
-
+//실제 데이터 가공
             private void processPacketData(byte[] data) {
                 int index = 0;
                 while (index < data.length) {
@@ -335,6 +334,7 @@ public class BLEManager {
 
                                 Log.d(TAG, "저장된 17바이트 데이터(실제 전송 데이터) END 포함): " + bytesToHexString(chunk));
                                 Log.d(TAG, "현재 서버 전송 데이터 크기: " + serverDataList.size());
+
                             }
                             index += 17;
                         } else {

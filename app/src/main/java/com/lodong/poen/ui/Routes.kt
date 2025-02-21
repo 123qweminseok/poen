@@ -19,5 +19,7 @@ sealed class Routes(val route: String) {
     object LoadingScreen : Routes("loading_screen")
     object PermissionRequestScreen : Routes("permission_request_screen")
     object FindAccountPassword : Routes("find_account_password")
+    object StartDiagnosis : Routes("start_diagnosis") // 수정된 부분
+    object DeleteAccount : Routes("deleteAccount")
 
 }

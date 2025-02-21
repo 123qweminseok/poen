@@ -203,30 +203,38 @@ fun BatteryInfoInput0(
 
 
 
+//2025.02.21수정사항. -초기화 한다고 했음. 6개 변수 추가 이부분 오류시ㅋ
+//    val selectedManufacturer = remember {
+//        mutableStateOf<Pair<String, String?>?>(
+//            savedBatteryInfo["car_manufacturer_name"]?.let { name ->
+//                Pair(name, savedBatteryInfo["car_manufacturer_id"])
+//            }
+//        )
+//    }
+//
+//    val selectedModel = remember {
+//        mutableStateOf<Pair<String, String?>?>(
+//            savedBatteryInfo["car_model_name"]?.let { name ->
+//                Pair(name, savedBatteryInfo["car_model_id"])
+//            }
+//        )
+//    }
+//
+//
+//    val vehicleNumber = remember { mutableStateOf(savedBatteryInfo["car_no"] ?: "") }
+//    val productNumber = remember { mutableStateOf(savedBatteryInfo["product_no"] ?: "") }
+//    val romId = remember { mutableStateOf(savedBatteryInfo["rom_id"] ?: "") }
+//    val productionDate = remember { mutableStateOf(savedBatteryInfo["production_date"] ?: "") }
 
-    val selectedManufacturer = remember {
-        mutableStateOf<Pair<String, String?>?>(
-            savedBatteryInfo["car_manufacturer_name"]?.let { name ->
-                Pair(name, savedBatteryInfo["car_manufacturer_id"])
-            }
-        )
-    }
-
-    val selectedModel = remember {
-        mutableStateOf<Pair<String, String?>?>(
-            savedBatteryInfo["car_model_name"]?.let { name ->
-                Pair(name, savedBatteryInfo["car_model_id"])
-            }
-        )
-    }
 
 
-//    val selectedManufacturer = remember { mutableStateOf(savedBatteryInfo["car_manufacturer_name"]) }
-//    val selectedModel = remember { mutableStateOf(savedBatteryInfo["car_model_name"]) }
-    val vehicleNumber = remember { mutableStateOf(savedBatteryInfo["car_no"] ?: "") }
-    val productNumber = remember { mutableStateOf(savedBatteryInfo["product_no"] ?: "") }
-    val romId = remember { mutableStateOf(savedBatteryInfo["rom_id"] ?: "") }
-    val productionDate = remember { mutableStateOf(savedBatteryInfo["production_date"] ?: "") }
+    val selectedManufacturer = remember { mutableStateOf<Pair<String, String?>?>(null) }
+    val selectedModel = remember { mutableStateOf<Pair<String, String?>?>(null) }
+    val vehicleNumber = remember { mutableStateOf("") }
+    val productNumber = remember { mutableStateOf("") }
+    val romId = remember { mutableStateOf("") }
+    val productionDate = remember { mutableStateOf("") }
+
     val saveError = remember { mutableStateOf<String?>(null) }
 
     // QR 화면 이동 상태 감지

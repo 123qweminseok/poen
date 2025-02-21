@@ -21,9 +21,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.lodong.poen.R
 import com.lodong.poen.network.ServerErrorEvent
 import com.lodong.poen.network.ServerSuccessEvent
+import com.lodong.poen.ui.navigation.Routes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -35,7 +37,9 @@ import org.greenrobot.eventbus.ThreadMode
 fun StartDiagnosis(
     context: Context,
     bluetoothViewModel: BluetoothViewModel,
-    pairedDevice: BluetoothViewModel.DeviceWithStatus
+    pairedDevice: BluetoothViewModel.DeviceWithStatus,
+    navController: NavController  // NavController 추가
+
 ) {
     //프로그레스바 관리.
     val progress = bluetoothViewModel.diagnosisProgress.collectAsState().value //BluetoothViewModel의 diagnosisProgress StateFlow를 가져온거임. 이 클래스에서 해주고 있기 때문에
@@ -46,6 +50,7 @@ fun StartDiagnosis(
 
 
 
+    var showCompletionDialog by remember { mutableStateOf(false) }
 
 
 
@@ -195,7 +200,7 @@ fun StartDiagnosis(
             },
             text = {
                 Text(
-                    text = "장치를 리셋해주세요\n(앱 재시작 및 블루투스 연결 재확인)",
+                    text = "장치를 확인해주세요\n(앱 재시작 및 BLE장치 확인)",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = Color.DarkGray
                     )
@@ -302,6 +307,70 @@ fun StartDiagnosis(
             dots.value = ""
         }
     }
+
+    //2025.02.21 진단완료 뜰시 다이얼로그 뜨게 하고 이제 넘어감
+
+    LaunchedEffect(progress) {
+        if (progress >= 1.0f) {
+            delay(1000) // 잠시 대기 후 다이얼로그 표시
+            showCompletionDialog = true
+        }
+    }
+
+
+
+
+    //2025.02.21 진단완료 뜰시 다이얼로그 뜨게 하고 이제 넘어감
+    if (showCompletionDialog) {
+        AlertDialog(
+            onDismissRequest = { /* 빈 처리 */ },
+            containerColor = Color.White,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 12.dp,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo),
+                        contentDescription = "로고 이미지",
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "진단 완료",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "진단이 완료되었습니다.",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        color = Color.DarkGray
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // 메인 화면으로 이동하며 스택 정리
+                        showCompletionDialog = false
+                        navController.navigate(Routes.LoginScreen.route) {
+                            popUpTo(Routes.StartDiagnosis.route) { inclusive = true }
+                        }
+                    }
+                ) {
+                    Text("확인")
+                }
+            }
+        )
+    }
+
+
+
+
+
 
 
 

@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import coil.compose.AsyncImagePainter.State.Empty.painter
 import com.lodong.poen.R
 import com.lodong.poen.ui.Header
@@ -38,7 +39,9 @@ fun DiagnoseScreen(
     context: Context,
     onBackButtonPressed: () -> Unit,
     bluetoothViewModel: BluetoothViewModel,
-    preferencesHelper: PreferencesHelper
+    preferencesHelper: PreferencesHelper,
+    navController: NavController  // NavController 추가
+
 ) {
     val batteryId = preferencesHelper.getBatteryInfo()["battery_id"]
     val devices = bluetoothViewModel.devices.collectAsState().value
@@ -113,7 +116,9 @@ fun DiagnoseScreen(
                     StartDiagnosis(
                         context = context,
                         bluetoothViewModel = bluetoothViewModel,
-                        pairedDevice = pairedDevice
+                        pairedDevice = pairedDevice,
+                        navController = navController  // NavController 전달
+
                     )
                 }
             }

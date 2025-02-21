@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.mavenPublish) // Maven Publish 플러그인
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.8.0"
 
 }
 
