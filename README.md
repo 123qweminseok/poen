@@ -28,9 +28,6 @@
 - [문의 게시판](#문의-게시판)
 - [작업 환경 및 Swagger API](#작업-환경-및-swagger-api)
 - [기술 스택](#기술-스택)
-- [설치 및 실행 방법](#설치-및-실행-방법)
-- [기여 방법](#기여-방법)
-- [라이선스](#라이선스)
 
 ---
 
@@ -204,14 +201,3 @@
 
 ---
 
-## 설치 및 실행 방법
-
-```bash
-# 리포지토리 클론
-git clone https://github.com/your-username/your-repo.git
-cd your-repo
-
-# 예시: 백엔드 서버 실행 (Gradle)
-./gradlew bootRun
-
-# 예시: Android 앱 실행 (Android Studio 이용)
