@@ -197,8 +197,8 @@
 
 | **분야**        | **기술**                        |
 | --------------- | ------------------------------- |
-| **프론트엔드**  | Android (Java / Kotlin)         |
-| **백엔드**      | RESTful API (Swagger 기반)      |
+| **프론트엔드**  | Android (Kotlin/Jetpack compose)         |
+| **백엔드**      | RESTful API (Swagger 기반) - 연동하는 작업 진행.(웹 백엔드가 구성)|
 | **통신**        | 저전력 BLE 통신                 |
 | **기타**        | Daum API (우편번호 조회)         |
 
