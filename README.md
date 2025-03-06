@@ -1,7 +1,5 @@
 # BLE 기반 스마트 디바이스 관리 시스템
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-brightgreen.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](#)
 
 ---
 
