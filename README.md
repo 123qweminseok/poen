@@ -34,7 +34,6 @@
 ## 메인 화면
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/a8efdf9a-9ce8-433e-9f16-ee5d85e72ee7" width="300px" alt="메인 화면 1">
   <img src="https://github.com/user-attachments/assets/922c79d8-e2fd-4cc0-9356-43a87f7486c4" width="300px" alt="메인 화면 2">
 </div>
 
